@@ -1,0 +1,46 @@
+[project]
+name = "ai-mail-agent"
+version = "1.0.0"
+description = "AI Mail Intelligence Agent - Multi-agent email classification system"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "asyncpg>=0.30.0",
+    "psycopg2-binary>=2.9.0",
+    "numpy>=1.26.0",
+    "alembic>=1.14.0",
+    "celery[redis]>=5.4.0",
+    "redis>=5.0.0",
+    "langchain>=0.3.0",
+    "langchain-groq>=0.2.0",
+    "langgraph>=0.2.0",
+    "sentence-transformers>=3.0.0",
+    "google-auth-oauthlib>=1.2.0",
+    "google-api-python-client>=2.150.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.6.0",
+    "python-dotenv>=1.0.0",
+    "httpx>=0.28.0",
+    "beautifulsoup4>=4.12.0",
+    "PyJWT>=2.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "httpx>=0.28.0",
+    "ruff>=0.8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+python_files = "test_*.py"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
