@@ -19,6 +19,8 @@ type RuntimeConfig = {
     apiUrl?: string;
 };
 
+const DEFAULT_PROD_BACKEND_URL = "https://mailmind-production-38fb.up.railway.app";
+
 function isLocalHost(hostname: string): boolean {
     return hostname === "localhost" || hostname === "127.0.0.1";
 }
@@ -60,9 +62,7 @@ function resolveAuthBase(): string {
         return "http://localhost:8000";
     }
 
-    throw new Error(
-        "Missing auth backend URL. Set AUTH_URL or NEXT_PUBLIC_AUTH_URL in frontend deployment variables."
-    );
+    return DEFAULT_PROD_BACKEND_URL;
 }
 
 function resolveApiBase(authBase: string): string {
@@ -80,9 +80,7 @@ function resolveApiBase(authBase: string): string {
         return "http://localhost:8000/api/v1";
     }
 
-    throw new Error(
-        "Missing API backend URL. Set API_URL or NEXT_PUBLIC_API_URL in frontend deployment variables."
-    );
+    return `${DEFAULT_PROD_BACKEND_URL}/api/v1`;
 }
 
 function getAuthBase(): string {
