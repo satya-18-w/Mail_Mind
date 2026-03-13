@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 
@@ -32,6 +33,32 @@ class Settings(BaseSettings):
     # Runtime
     port: int = 8000
     auto_create_tables: bool = True
+
+    # --- Validators: normalise DB URL schemes regardless of what Railway injects ---
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def fix_async_scheme(cls, v: str) -> str:
+        """Ensure DATABASE_URL always uses the asyncpg driver scheme.
+        Railway's ${{Postgres.DATABASE_URL}} returns plain postgresql://.
+        """
+        if isinstance(v, str):
+            if v.startswith("postgresql://"):
+                return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+            if v.startswith("postgres://"):
+                return v.replace("postgres://", "postgresql+asyncpg://", 1)
+        return v
+
+    @field_validator("database_url_sync", mode="before")
+    @classmethod
+    def fix_sync_scheme(cls, v: str) -> str:
+        """Ensure DATABASE_URL_SYNC never has the asyncpg driver scheme."""
+        if isinstance(v, str):
+            if v.startswith("postgresql+asyncpg://"):
+                return v.replace("postgresql+asyncpg://", "postgresql://", 1)
+            if v.startswith("postgres://"):
+                return v.replace("postgres://", "postgresql://", 1)
+        return v
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 
