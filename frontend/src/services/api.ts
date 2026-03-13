@@ -10,8 +10,58 @@ import type {
     PipelineRun,
 } from "@/types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-const AUTH_BASE = process.env.NEXT_PUBLIC_AUTH_URL || "http://localhost:8000";
+function stripTrailingSlash(url: string): string {
+    return url.endsWith("/") ? url.slice(0, -1) : url;
+}
+
+function getBrowserOrigin(): string | null {
+    if (typeof window === "undefined") return null;
+    return `${window.location.protocol}//${window.location.host}`;
+}
+
+function isLocalHost(origin: string): boolean {
+    return (
+        origin.includes("localhost") ||
+        origin.includes("127.0.0.1")
+    );
+}
+
+function resolveAuthBase(): string {
+    const authFromEnv = process.env.NEXT_PUBLIC_AUTH_URL;
+    if (authFromEnv) return stripTrailingSlash(authFromEnv);
+
+    const apiFromEnv = process.env.NEXT_PUBLIC_API_URL;
+    if (apiFromEnv) {
+        const trimmed = stripTrailingSlash(apiFromEnv);
+        return trimmed.replace(/\/api(?:\/v1)?$/, "");
+    }
+
+    const browserOrigin = getBrowserOrigin();
+    if (browserOrigin && !isLocalHost(browserOrigin)) {
+        return browserOrigin;
+    }
+
+    return "http://localhost:8000";
+}
+
+function resolveApiBase(authBase: string): string {
+    const apiFromEnv = process.env.NEXT_PUBLIC_API_URL;
+    if (apiFromEnv) return stripTrailingSlash(apiFromEnv);
+
+    const browserOrigin = getBrowserOrigin();
+    if (browserOrigin && !isLocalHost(browserOrigin)) {
+        return `${browserOrigin}/api/v1`;
+    }
+
+    if (authBase) {
+        return `${stripTrailingSlash(authBase)}/api/v1`;
+    }
+
+    return "http://localhost:8000/api/v1";
+}
+
+const AUTH_BASE = resolveAuthBase();
+const API_BASE = resolveApiBase(AUTH_BASE);
 
 function getToken(): string | null {
     if (typeof window === "undefined") return null;
