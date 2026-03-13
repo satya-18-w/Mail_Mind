@@ -62,6 +62,15 @@ export default function Dashboard() {
     latestRun?.status === "QUEUED" ||
     latestRun?.status === "RUNNING";
 
+  const pipelineTotal = latestRun?.fetched_count ?? 0;
+  const pipelineDone =
+    (latestRun?.processed_count ?? 0) +
+    (latestRun?.skipped_count ?? 0) +
+    (latestRun?.failed_count ?? 0);
+  const pipelinePercent = pipelineTotal > 0
+    ? Math.min(100, Math.round((pipelineDone / pipelineTotal) * 100))
+    : 0;
+
   const pipelineLabel = (() => {
     if (pipelineMutation.isPending) return "Starting...";
     if (!latestRun) return "Scan Emails";
@@ -265,6 +274,30 @@ export default function Dashboard() {
                 Error: {latestRun.error_message}
               </span>
             )}
+          </div>
+        )}
+
+        {isPipelineActive && (
+          <div className="px-6 py-2 border-b border-slate-200/50 bg-white/70">
+            <div className="flex items-center justify-between text-xs text-slate-600 mb-1.5">
+              <span>
+                AI has read <strong className="text-slate-800">{latestRun?.processed_count ?? 0}</strong>
+                {pipelineTotal > 0 ? ` / ${pipelineTotal}` : " emails"}
+              </span>
+              <span>
+                {pipelineTotal > 0 ? `${pipelinePercent}%` : "Preparing inbox scan..."}
+              </span>
+            </div>
+            <div className="h-2 w-full rounded-full bg-slate-200 overflow-hidden">
+              {pipelineTotal > 0 ? (
+                <div
+                  className="h-full bg-linear-to-r from-indigo-500 to-violet-500 transition-all duration-500"
+                  style={{ width: `${pipelinePercent}%` }}
+                />
+              ) : (
+                <div className="h-full w-2/5 bg-linear-to-r from-indigo-500 to-violet-500 animate-pulse" />
+              )}
+            </div>
           </div>
         )}
 
