@@ -14,44 +14,48 @@ function stripTrailingSlash(url: string): string {
     return url.endsWith("/") ? url.slice(0, -1) : url;
 }
 
-function getBrowserOrigin(): string | null {
+type RuntimeConfig = {
+    authUrl?: string;
+    apiUrl?: string;
+};
+
+function getRuntimeConfig(): RuntimeConfig | null {
     if (typeof window === "undefined") return null;
-    return `${window.location.protocol}//${window.location.host}`;
+    const runtime = (window as Window & { __MAILMIND_CONFIG__?: RuntimeConfig }).__MAILMIND_CONFIG__;
+    return runtime ?? null;
 }
 
-function isLocalHost(origin: string): boolean {
-    return (
-        origin.includes("localhost") ||
-        origin.includes("127.0.0.1")
-    );
+function authBaseFromApiBase(apiBase: string): string {
+    return apiBase.replace(/\/api(?:\/v1)?$/, "");
 }
 
 function resolveAuthBase(): string {
+    const runtime = getRuntimeConfig();
+    if (runtime?.authUrl) return stripTrailingSlash(runtime.authUrl);
+
     const authFromEnv = process.env.NEXT_PUBLIC_AUTH_URL;
     if (authFromEnv) return stripTrailingSlash(authFromEnv);
+
+    if (runtime?.apiUrl) {
+        const trimmed = stripTrailingSlash(runtime.apiUrl);
+        return authBaseFromApiBase(trimmed);
+    }
 
     const apiFromEnv = process.env.NEXT_PUBLIC_API_URL;
     if (apiFromEnv) {
         const trimmed = stripTrailingSlash(apiFromEnv);
-        return trimmed.replace(/\/api(?:\/v1)?$/, "");
-    }
-
-    const browserOrigin = getBrowserOrigin();
-    if (browserOrigin && !isLocalHost(browserOrigin)) {
-        return browserOrigin;
+        return authBaseFromApiBase(trimmed);
     }
 
     return "http://localhost:8000";
 }
 
 function resolveApiBase(authBase: string): string {
+    const runtime = getRuntimeConfig();
+    if (runtime?.apiUrl) return stripTrailingSlash(runtime.apiUrl);
+
     const apiFromEnv = process.env.NEXT_PUBLIC_API_URL;
     if (apiFromEnv) return stripTrailingSlash(apiFromEnv);
-
-    const browserOrigin = getBrowserOrigin();
-    if (browserOrigin && !isLocalHost(browserOrigin)) {
-        return `${browserOrigin}/api/v1`;
-    }
 
     if (authBase) {
         return `${stripTrailingSlash(authBase)}/api/v1`;

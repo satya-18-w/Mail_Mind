@@ -18,9 +18,17 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const runtimeConfig = {
+    authUrl: process.env.AUTH_URL || process.env.NEXT_PUBLIC_AUTH_URL || "",
+    apiUrl: process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "",
+  };
+
+  const runtimeConfigScript = `window.__MAILMIND_CONFIG__ = ${JSON.stringify(runtimeConfig)};`;
+
   return (
     <html lang="en" suppressHydrationWarning>
       <body suppressHydrationWarning className={`${inter.variable} font-sans antialiased`}>
+        <script dangerouslySetInnerHTML={{ __html: runtimeConfigScript }} />
         <Providers>{children}</Providers>
       </body>
     </html>
