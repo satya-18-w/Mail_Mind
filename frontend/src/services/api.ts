@@ -85,8 +85,14 @@ function resolveApiBase(authBase: string): string {
     );
 }
 
-const AUTH_BASE = resolveAuthBase();
-const API_BASE = resolveApiBase(AUTH_BASE);
+function getAuthBase(): string {
+    return resolveAuthBase();
+}
+
+function getApiBase(): string {
+    const authBase = getAuthBase();
+    return resolveApiBase(authBase);
+}
 
 function getToken(): string | null {
     if (typeof window === "undefined") return null;
@@ -95,13 +101,14 @@ function getToken(): string | null {
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     const token = getToken();
+    const apiBase = getApiBase();
     const headers: Record<string, string> = {
         "Content-Type": "application/json",
     };
     if (token) {
         headers["Authorization"] = `Bearer ${token}`;
     }
-    const res = await fetch(`${API_BASE}${path}`, {
+    const res = await fetch(`${apiBase}${path}`, {
         headers,
         ...options,
     });
@@ -120,11 +127,12 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const api = {
     // Auth
-    getGoogleLoginUrl: () => `${AUTH_BASE}/auth/google/login`,
+    getGoogleLoginUrl: () => `${getAuthBase()}/auth/google/login`,
 
     getMe: () => {
         const token = getToken();
-        return fetch(`${AUTH_BASE}/auth/me`, {
+        const authBase = getAuthBase();
+        return fetch(`${authBase}/auth/me`, {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
         }).then((res) => {
             if (!res.ok) throw new Error("Not authenticated");
