@@ -28,7 +28,10 @@ class Settings(BaseSettings):
 
     # Frontend
     frontend_url: str = "http://localhost:3000"
-    PORT = 8000
+
+    # Runtime
+    port: int = 8000
+    auto_create_tables: bool = True
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 
