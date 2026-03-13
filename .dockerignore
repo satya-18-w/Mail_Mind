@@ -1,0 +1,38 @@
+# Git and editor
+.git
+.gitignore
+.vscode
+.idea
+
+# Python
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+
+# Node / frontend artifacts
+frontend/node_modules
+frontend/.next
+frontend/out
+
+# Local env and secrets
+.env
+.env.*
+!.env.example
+credentials.json
+token.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and temporary
+*.log
+tmp
+temp
