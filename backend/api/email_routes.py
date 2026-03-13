@@ -18,9 +18,6 @@ from backend.api.schemas import (
     StatsOverview,
 )
 from backend.api.dependencies import get_current_user, get_optional_user
-from backend.services.embedding_service import EmbeddingService
-from backend.workflows.email_graph import process_email
-from backend.services.gmail_fetcher import GmailFetcher
 
 router = APIRouter(prefix="/api/v1", tags=["emails"])
 
@@ -132,6 +129,8 @@ async def search_emails(
     user: User | None = Depends(get_optional_user),
 ):
     """Semantic search across emails."""
+    from backend.services.embedding_service import EmbeddingService
+
     embedding_service = EmbeddingService()
     query_embedding = embedding_service.embed(request.query)
     uid = user.id if user else None
@@ -192,6 +191,8 @@ def _run_pipeline(db_url: str, user_id: int | None = None,
     """Background task to fetch and process emails."""
     from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession as AS
     from sqlalchemy.ext.asyncio import async_sessionmaker
+    from backend.services.gmail_fetcher import GmailFetcher
+    from backend.workflows.email_graph import process_email
 
     async def _process():
         engine = create_async_engine(db_url)

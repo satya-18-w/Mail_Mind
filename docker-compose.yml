@@ -1,8 +1,9 @@
 services:
   redis:
     image: redis:7-alpine
+    profiles: ["local-infra"]
     ports:
-      - "6379:6379"
+      - "${REDIS_HOST_PORT:-6379}:6379"
 
   backend:
     build:
@@ -14,10 +15,13 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@host.docker.internal:5432/ai_mail_agent
-      - DATABASE_URL_SYNC=postgresql://postgres:postgres@host.docker.internal:5432/ai_mail_agent
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@host.docker.internal:5432/ai_mail_agent}
+      - DATABASE_URL_SYNC=${DATABASE_URL_SYNC:-postgresql://postgres:postgres@host.docker.internal:5432/ai_mail_agent}
+      - REDIS_URL=${REDIS_URL:-redis://host.docker.internal:6379/0}
     depends_on:
-      - redis
+      redis:
+        condition: service_started
+        required: false
 
   celery-worker:
     build:
@@ -28,10 +32,13 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@host.docker.internal:5432/ai_mail_agent
-      - DATABASE_URL_SYNC=postgresql://postgres:postgres@host.docker.internal:5432/ai_mail_agent
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@host.docker.internal:5432/ai_mail_agent}
+      - DATABASE_URL_SYNC=${DATABASE_URL_SYNC:-postgresql://postgres:postgres@host.docker.internal:5432/ai_mail_agent}
+      - REDIS_URL=${REDIS_URL:-redis://host.docker.internal:6379/0}
     depends_on:
-      - redis
+      redis:
+        condition: service_started
+        required: false
 
   celery-beat:
     build:
@@ -42,10 +49,13 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@host.docker.internal:5432/ai_mail_agent
-      - DATABASE_URL_SYNC=postgresql://postgres:postgres@host.docker.internal:5432/ai_mail_agent
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://postgres:postgres@host.docker.internal:5432/ai_mail_agent}
+      - DATABASE_URL_SYNC=${DATABASE_URL_SYNC:-postgresql://postgres:postgres@host.docker.internal:5432/ai_mail_agent}
+      - REDIS_URL=${REDIS_URL:-redis://host.docker.internal:6379/0}
     depends_on:
-      - redis
+      redis:
+        condition: service_started
+        required: false
 
   frontend:
     build:
@@ -54,6 +64,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+      - NEXT_PUBLIC_AUTH_URL=${NEXT_PUBLIC_AUTH_URL:-http://localhost:8000}
     depends_on:
       - backend

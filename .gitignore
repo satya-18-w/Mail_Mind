@@ -4,6 +4,8 @@
 !.env.example
 credentials.json
 token.json
+error.py
+
 
 # Python
 __pycache__/
