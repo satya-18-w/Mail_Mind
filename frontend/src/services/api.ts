@@ -19,6 +19,15 @@ type RuntimeConfig = {
     apiUrl?: string;
 };
 
+function isLocalHost(hostname: string): boolean {
+    return hostname === "localhost" || hostname === "127.0.0.1";
+}
+
+function inBrowserLocalDev(): boolean {
+    if (typeof window === "undefined") return false;
+    return isLocalHost(window.location.hostname);
+}
+
 function getRuntimeConfig(): RuntimeConfig | null {
     if (typeof window === "undefined") return null;
     const runtime = (window as Window & { __MAILMIND_CONFIG__?: RuntimeConfig }).__MAILMIND_CONFIG__;
@@ -47,7 +56,13 @@ function resolveAuthBase(): string {
         return authBaseFromApiBase(trimmed);
     }
 
-    return "http://localhost:8000";
+    if (inBrowserLocalDev()) {
+        return "http://localhost:8000";
+    }
+
+    throw new Error(
+        "Missing auth backend URL. Set AUTH_URL or NEXT_PUBLIC_AUTH_URL in frontend deployment variables."
+    );
 }
 
 function resolveApiBase(authBase: string): string {
@@ -61,7 +76,13 @@ function resolveApiBase(authBase: string): string {
         return `${stripTrailingSlash(authBase)}/api/v1`;
     }
 
-    return "http://localhost:8000/api/v1";
+    if (inBrowserLocalDev()) {
+        return "http://localhost:8000/api/v1";
+    }
+
+    throw new Error(
+        "Missing API backend URL. Set API_URL or NEXT_PUBLIC_API_URL in frontend deployment variables."
+    );
 }
 
 const AUTH_BASE = resolveAuthBase();
