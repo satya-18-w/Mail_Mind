@@ -331,7 +331,9 @@ export function EmailDetailPanel({ email, onClose }: EmailDetailPanelProps) {
                     </div>
 
                     <div className="bg-slate-50 rounded-xl p-4 text-sm text-slate-700 leading-relaxed border border-slate-100 space-y-3">
-                        {showOriginalBody ? (
+                        {!email.body?.trim() ? (
+                            <p className="text-slate-400 italic">No readable body content found in this email.</p>
+                        ) : showOriginalBody ? (
                             <pre className="whitespace-pre-wrap wrap-break-word font-sans text-sm text-slate-700">
                                 {email.body}
                             </pre>

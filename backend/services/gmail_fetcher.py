@@ -145,20 +145,53 @@ class GmailFetcher:
         }
 
     def _extract_body(self, payload: dict) -> str:
-        """Extract plain text body from email payload."""
-        if payload.get("body", {}).get("data"):
-            return base64.urlsafe_b64decode(payload["body"]["data"]).decode("utf-8", errors="replace")
+        """Extract readable text from email payload.
 
-        parts = payload.get("parts", [])
-        for part in parts:
-            if part.get("mimeType") == "text/plain" and part.get("body", {}).get("data"):
-                return base64.urlsafe_b64decode(part["body"]["data"]).decode(
-                    "utf-8", errors="replace"
-                )
-            # Recurse into nested parts
-            if part.get("parts"):
-                result = self._extract_body(part)
-                if result:
-                    return result
+        Preference order:
+        1. text/plain  – already human-readable
+        2. text/html   – strip tags with BeautifulSoup
+        3. top-level body data
+        """
+        from bs4 import BeautifulSoup
 
+        def _decode(data: str) -> str:
+            return base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
+
+        def _html_to_text(html: str) -> str:
+            soup = BeautifulSoup(html, "html.parser")
+            # Remove script/style noise
+            for tag in soup(["script", "style", "head", "meta", "link"]):
+                tag.decompose()
+            return soup.get_text(separator="\n", strip=True)
+
+        # ── top-level body (simple plain-text messages) ──
+        top_body = payload.get("body", {})
+        if top_body.get("data"):
+            raw = _decode(top_body["data"])
+            mime = payload.get("mimeType", "")
+            return _html_to_text(raw) if "html" in mime else raw
+
+        # ── walk parts ──
+        plain: str = ""
+        html: str = ""
+
+        def _walk(parts: list) -> None:
+            nonlocal plain, html
+            for part in parts:
+                mime = part.get("mimeType", "")
+                data = part.get("body", {}).get("data", "")
+                if data:
+                    if mime == "text/plain" and not plain:
+                        plain = _decode(data)
+                    elif mime == "text/html" and not html:
+                        html = _decode(data)
+                if part.get("parts"):
+                    _walk(part["parts"])
+
+        _walk(payload.get("parts", []))
+
+        if plain:
+            return plain
+        if html:
+            return _html_to_text(html)
         return ""
