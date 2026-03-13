@@ -100,11 +100,13 @@ def create_access_token(user_id: int) -> str:
 
 
 @router.get("/auth/google/login")
-async def google_login(request: Request):
+async def google_login(request: Request, frontend: str | None = None):
     """Redirect the user to Google's OAuth2 consent screen."""
     settings = get_settings()
     redirect_uri = _resolve_google_redirect_uri(settings, request)
-    frontend_origin = _extract_frontend_origin(request)
+    frontend_origin = frontend or _extract_frontend_origin(request)
+    if frontend_origin and not (frontend_origin.startswith("http://") or frontend_origin.startswith("https://")):
+        frontend_origin = None
     state = urllib.parse.urlencode({"frontend": frontend_origin}) if frontend_origin else None
 
     params = {

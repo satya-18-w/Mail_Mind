@@ -125,7 +125,12 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 
 export const api = {
     // Auth
-    getGoogleLoginUrl: () => `${getAuthBase()}/auth/google/login`,
+    getGoogleLoginUrl: () => {
+        const authBase = getAuthBase();
+        if (typeof window === "undefined") return `${authBase}/auth/google/login`;
+        const frontend = encodeURIComponent(window.location.origin);
+        return `${authBase}/auth/google/login?frontend=${frontend}`;
+    },
 
     getMe: () => {
         const token = getToken();
