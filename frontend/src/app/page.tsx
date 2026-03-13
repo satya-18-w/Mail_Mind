@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { EmailList } from "@/components/EmailList";
 import { EmailDetailPanel } from "@/components/EmailDetailPanel";
@@ -21,13 +21,16 @@ import {
   useStatsOverview,
   useSearchEmails,
   useTriggerPipeline,
+  useLatestPipelineRun,
 } from "@/hooks/useEmails";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Email } from "@/types";
 import { RefreshCw, LayoutDashboard, Keyboard } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
+  const queryClient = useQueryClient();
   const [selectedView, setSelectedView] = useState("all");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedPriority, setSelectedPriority] = useState<string | null>(null);
@@ -52,6 +55,30 @@ export default function Dashboard() {
 
   const searchMutation = useSearchEmails();
   const pipelineMutation = useTriggerPipeline();
+  const { data: latestRun } = useLatestPipelineRun(!!user);
+
+  const isPipelineActive =
+    pipelineMutation.isPending ||
+    latestRun?.status === "QUEUED" ||
+    latestRun?.status === "RUNNING";
+
+  const pipelineLabel = (() => {
+    if (pipelineMutation.isPending) return "Starting...";
+    if (!latestRun) return "Scan Emails";
+    if (latestRun.status === "QUEUED") return "Queued...";
+    if (latestRun.status === "RUNNING") {
+      return `Processing ${latestRun.processed_count}/${latestRun.fetched_count || "?"}`;
+    }
+    return "Scan Emails";
+  })();
+
+  useEffect(() => {
+    if (!latestRun) return;
+    if (latestRun.status === "COMPLETED" || latestRun.status === "FAILED") {
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+    }
+  }, [latestRun, queryClient]);
 
   // Determine which emails to show
   let displayEmails: Email[] = [];
@@ -209,20 +236,37 @@ export default function Dashboard() {
 
           <button
             onClick={() => pipelineMutation.mutate()}
-            disabled={pipelineMutation.isPending}
+            disabled={isPipelineActive}
             className="flex items-center gap-2 px-4 py-2 bg-linear-to-r from-indigo-600 to-violet-600 text-white text-sm font-medium rounded-lg hover:from-indigo-700 hover:to-violet-700 disabled:opacity-50 transition-all shadow-sm hover:shadow-md active:scale-[0.98]"
           >
             <RefreshCw
-              className={`w-4 h-4 ${pipelineMutation.isPending ? "animate-spin" : ""
+              className={`w-4 h-4 ${isPipelineActive ? "animate-spin" : ""
                 }`}
             />
-            {pipelineMutation.isPending ? "Scanning..." : "Scan Emails"}
+            {pipelineLabel}
           </button>
 
           <UserMenu />
         </header>
 
         <ProfileSection user={user} />
+
+        {latestRun && (
+          <div className="px-6 py-2 border-b border-slate-200/60 bg-white/60 text-xs sm:text-sm text-slate-600 flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span>
+              Pipeline: <strong className="text-slate-800">{latestRun.status}</strong>
+            </span>
+            <span>Fetched: {latestRun.fetched_count}</span>
+            <span>Processed: {latestRun.processed_count}</span>
+            <span>Skipped: {latestRun.skipped_count}</span>
+            <span>Failed: {latestRun.failed_count}</span>
+            {latestRun.error_message && (
+              <span className="text-rose-600 truncate max-w-full" title={latestRun.error_message}>
+                Error: {latestRun.error_message}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Search results indicator */}
         {searchResults && (

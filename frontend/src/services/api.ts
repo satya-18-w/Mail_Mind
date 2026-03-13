@@ -1,4 +1,14 @@
-import type { Email, User, CategoryStat, PriorityStat, StatsOverview, Task, SearchResult, PipelineStatus } from "@/types";
+import type {
+    Email,
+    User,
+    CategoryStat,
+    PriorityStat,
+    StatsOverview,
+    Task,
+    SearchResult,
+    PipelineStatus,
+    PipelineRun,
+} from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 const AUTH_BASE = process.env.NEXT_PUBLIC_AUTH_URL || "http://localhost:8000";
@@ -95,4 +105,10 @@ export const api = {
     // Pipeline
     triggerPipeline: () =>
         apiFetch<PipelineStatus>("/pipeline/run", { method: "POST" }),
+
+    getLatestPipelineRun: () =>
+        apiFetch<PipelineRun>("/pipeline/runs/latest"),
+
+    getPipelineRun: (runId: number) =>
+        apiFetch<PipelineRun>(`/pipeline/runs/${runId}`),
 };

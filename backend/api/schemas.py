@@ -56,8 +56,24 @@ class SearchResult(BaseModel):
 
 class PipelineStatus(BaseModel):
     status: str
+    run_id: int | None = None
     processed: int = 0
     message: str = ""
+
+
+class PipelineRunOut(BaseModel):
+    id: int
+    status: str
+    fetched_count: int = 0
+    processed_count: int = 0
+    skipped_count: int = 0
+    failed_count: int = 0
+    started_at: datetime.datetime | None = None
+    finished_at: datetime.datetime | None = None
+    error_message: str | None = None
+    created_at: datetime.datetime
+
+    model_config = {"from_attributes": True}
 
 
 class UserOut(BaseModel):

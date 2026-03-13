@@ -2,6 +2,7 @@
 
 import asyncio
 import datetime
+import logging
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,11 +16,13 @@ from backend.api.schemas import (
     SearchRequest,
     SearchResult,
     PipelineStatus,
+    PipelineRunOut,
     StatsOverview,
 )
 from backend.api.dependencies import get_current_user, get_optional_user
 
 router = APIRouter(prefix="/api/v1", tags=["emails"])
+logger = logging.getLogger(__name__)
 
 
 # --- Email Endpoints ---
@@ -185,7 +188,8 @@ async def get_tasks(db: AsyncSession = Depends(get_db)):
 # --- Pipeline Trigger ---
 
 
-def _run_pipeline(db_url: str, user_id: int | None = None,
+def _run_pipeline(db_url: str, run_id: int,
+                  user_id: int | None = None,
                   access_token: str | None = None,
                   refresh_token: str | None = None):
     """Background task to fetch and process emails."""
@@ -198,59 +202,116 @@ def _run_pipeline(db_url: str, user_id: int | None = None,
         engine = create_async_engine(db_url)
         session_factory = async_sessionmaker(engine, class_=AS, expire_on_commit=False)
 
+        counters = {
+            "fetched": 0,
+            "processed": 0,
+            "skipped": 0,
+            "failed": 0,
+        }
+
+        async with session_factory() as session:
+            await crud.update_pipeline_run(
+                session,
+                run_id,
+                status="RUNNING",
+                started_at=datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
+            )
+
         fetcher = GmailFetcher(
             access_token=access_token,
             refresh_token=refresh_token,
         )
-        fetcher.authenticate()
-        raw_emails = fetcher.fetch_emails(max_results=50, days=30)
+        try:
+            fetcher.authenticate()
+            raw_emails = fetcher.fetch_emails(max_results=50, days=30)
+            counters["fetched"] = len(raw_emails)
 
-        async with session_factory() as session:
-            for raw in raw_emails:
-                # Skip already-processed emails for performance
-                if await crud.email_exists(session, raw["gmail_id"], user_id=user_id):
-                    continue
+            async with session_factory() as session:
+                await crud.update_pipeline_run(
+                    session,
+                    run_id,
+                    fetched_count=counters["fetched"],
+                )
 
-                enriched = process_email(raw)
-
-                # Convert deadline
-                deadline_val = None
-                if enriched.get("deadline"):
+                for raw in raw_emails:
                     try:
-                        deadline_val = datetime.date.fromisoformat(enriched["deadline"])
-                    except (ValueError, TypeError):
+                        # Skip already-processed emails for performance
+                        if await crud.email_exists(session, raw["gmail_id"], user_id=user_id):
+                            counters["skipped"] += 1
+                            continue
+
+                        enriched = process_email(raw)
+
+                        # Convert deadline
                         deadline_val = None
+                        if enriched.get("deadline"):
+                            try:
+                                deadline_val = datetime.date.fromisoformat(enriched["deadline"])
+                            except (ValueError, TypeError):
+                                deadline_val = None
 
-                # Convert timestamp
-                ts = enriched.get("timestamp", datetime.datetime.now(datetime.timezone.utc))
-                if isinstance(ts, str):
-                    try:
-                        ts = datetime.datetime.fromisoformat(ts)
-                    except ValueError:
-                        ts = datetime.datetime.now(datetime.timezone.utc)
-                if hasattr(ts, "tzinfo") and ts.tzinfo is not None:
-                    ts = ts.replace(tzinfo=None)
+                        # Convert timestamp
+                        ts = enriched.get("timestamp", datetime.datetime.now(datetime.timezone.utc))
+                        if isinstance(ts, str):
+                            try:
+                                ts = datetime.datetime.fromisoformat(ts)
+                            except ValueError:
+                                ts = datetime.datetime.now(datetime.timezone.utc)
+                        if hasattr(ts, "tzinfo") and ts.tzinfo is not None:
+                            ts = ts.replace(tzinfo=None)
 
-                email_data = {
-                    "gmail_id": enriched["gmail_id"],
-                    "sender": enriched["sender"],
-                    "subject": enriched["subject"],
-                    "body": enriched["body"],
-                    "timestamp": ts,
-                    "category": enriched.get("category"),
-                    "subcategory": enriched.get("subcategory"),
-                    "priority": enriched.get("priority"),
-                    "deadline": deadline_val,
-                    "summary": enriched.get("summary"),
-                    "embedding": enriched.get("embedding"),
-                    "user_id": user_id,
-                }
+                        email_data = {
+                            "gmail_id": enriched["gmail_id"],
+                            "sender": enriched["sender"],
+                            "subject": enriched["subject"],
+                            "body": enriched["body"],
+                            "timestamp": ts,
+                            "category": enriched.get("category"),
+                            "subcategory": enriched.get("subcategory"),
+                            "priority": enriched.get("priority"),
+                            "deadline": deadline_val,
+                            "summary": enriched.get("summary"),
+                            "embedding": enriched.get("embedding"),
+                            "user_id": user_id,
+                        }
 
-                email = await crud.upsert_email(session, email_data)
-                await crud.create_task_from_email(session, email)
+                        email = await crud.upsert_email(session, email_data)
+                        await crud.create_task_from_email(session, email)
+                        counters["processed"] += 1
+                    except Exception:
+                        counters["failed"] += 1
+                        logger.exception("Failed to process one email in run_id=%s", run_id)
 
-            # Clean up old emails
-            await crud.delete_old_emails(session, days=30)
+                # Clean up old emails
+                await crud.delete_old_emails(session, days=30)
+
+                await crud.update_pipeline_run(
+                    session,
+                    run_id,
+                    status="COMPLETED",
+                    fetched_count=counters["fetched"],
+                    processed_count=counters["processed"],
+                    skipped_count=counters["skipped"],
+                    failed_count=counters["failed"],
+                    finished_at=datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
+                    error_message=None,
+                )
+        except Exception as exc:
+            logger.exception("Pipeline run failed run_id=%s", run_id)
+            async with session_factory() as session:
+                await crud.update_pipeline_run(
+                    session,
+                    run_id,
+                    status="FAILED",
+                    fetched_count=counters["fetched"],
+                    processed_count=counters["processed"],
+                    skipped_count=counters["skipped"],
+                    failed_count=counters["failed"] + 1,
+                    finished_at=datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
+                    error_message=str(exc)[:2000],
+                )
+        finally:
+            await engine.dispose()
 
     asyncio.run(_process())
 
@@ -258,20 +319,54 @@ def _run_pipeline(db_url: str, user_id: int | None = None,
 @router.post("/pipeline/run", response_model=PipelineStatus)
 async def trigger_pipeline(
     background_tasks: BackgroundTasks,
-    user: User | None = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     """Trigger the email processing pipeline."""
     from backend.core.config import get_settings
 
+    if not user.gmail_access_token:
+        raise HTTPException(status_code=400, detail="Missing Gmail access token. Please reconnect Google account.")
+
     settings = get_settings()
+    run = await crud.create_pipeline_run(db, user_id=user.id)
+
     background_tasks.add_task(
         _run_pipeline,
         settings.database_url,
-        user.id if user else None,
-        user.gmail_access_token if user else None,
-        user.gmail_refresh_token if user else None,
+        run.id,
+        user.id,
+        user.gmail_access_token,
+        user.gmail_refresh_token,
     )
-    return PipelineStatus(status="started", message="Pipeline triggered in background")
+    return PipelineStatus(
+        status="started",
+        run_id=run.id,
+        message="Pipeline triggered in background",
+    )
+
+
+@router.get("/pipeline/runs/latest", response_model=PipelineRunOut)
+async def get_latest_pipeline_run(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    run = await crud.get_latest_pipeline_run(db, user_id=user.id)
+    if not run:
+        raise HTTPException(status_code=404, detail="No pipeline runs found")
+    return run
+
+
+@router.get("/pipeline/runs/{run_id}", response_model=PipelineRunOut)
+async def get_pipeline_run(
+    run_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    run = await crud.get_pipeline_run_by_id(db, run_id)
+    if not run or run.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Pipeline run not found")
+    return run
 
 
 @router.delete("/emails/cleanup")

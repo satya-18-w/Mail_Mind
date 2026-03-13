@@ -110,10 +110,24 @@ export function useTriggerPipeline() {
     return useMutation({
         mutationFn: api.triggerPipeline,
         onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["pipeline", "latest"] });
             setTimeout(() => {
                 queryClient.invalidateQueries({ queryKey: ["emails"] });
                 queryClient.invalidateQueries({ queryKey: ["stats"] });
-            }, 3000);
+            }, 1000);
+        },
+    });
+}
+
+export function useLatestPipelineRun(enabled = true) {
+    return useQuery({
+        queryKey: ["pipeline", "latest"],
+        queryFn: api.getLatestPipelineRun,
+        enabled,
+        retry: false,
+        refetchInterval: (query) => {
+            const status = query.state.data?.status;
+            return status === "RUNNING" || status === "QUEUED" ? 3000 : false;
         },
     });
 }

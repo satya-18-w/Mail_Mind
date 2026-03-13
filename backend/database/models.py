@@ -18,6 +18,13 @@ class TaskStatus(str, enum.Enum):
     OVERDUE = "OVERDUE"
 
 
+class PipelineRunStatus(str, enum.Enum):
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -91,3 +98,25 @@ class Task(Base):
     priority: Mapped[str | None] = mapped_column(SAEnum(PriorityLevel))
 
     email: Mapped["Email"] = relationship(back_populates="tasks")
+
+
+class PipelineRun(Base):
+    __tablename__ = "pipeline_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    status: Mapped[str] = mapped_column(
+        SAEnum(PipelineRunStatus), default=PipelineRunStatus.QUEUED, index=True
+    )
+    fetched_count: Mapped[int] = mapped_column(Integer, default=0)
+    processed_count: Mapped[int] = mapped_column(Integer, default=0)
+    skipped_count: Mapped[int] = mapped_column(Integer, default=0)
+    failed_count: Mapped[int] = mapped_column(Integer, default=0)
+    started_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    )

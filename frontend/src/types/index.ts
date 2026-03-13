@@ -53,8 +53,22 @@ export interface SearchResult {
 
 export interface PipelineStatus {
     status: string;
+    run_id?: number | null;
     processed: number;
     message: string;
+}
+
+export interface PipelineRun {
+    id: number;
+    status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+    fetched_count: number;
+    processed_count: number;
+    skipped_count: number;
+    failed_count: number;
+    started_at: string | null;
+    finished_at: string | null;
+    error_message: string | null;
+    created_at: string;
 }
 
 export interface TokenResponse {

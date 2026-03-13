@@ -6,7 +6,15 @@ from sqlalchemy import select, func, update, delete
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.database.models import Email, Category, Task, User, PriorityLevel, TaskStatus
+from backend.database.models import (
+    Email,
+    Category,
+    Task,
+    User,
+    PriorityLevel,
+    TaskStatus,
+    PipelineRun,
+)
 
 
 # ─── User Operations ─────────────────────────────────────────
@@ -313,3 +321,66 @@ async def delete_old_emails(db: AsyncSession, days: int = 30) -> int:
     deleted_count = result.rowcount
     await db.commit()
     return deleted_count
+
+
+# --- Pipeline Run Tracking ---
+
+
+async def create_pipeline_run(db: AsyncSession, user_id: int | None = None) -> PipelineRun:
+    run = PipelineRun(user_id=user_id, status="QUEUED")
+    db.add(run)
+    await db.commit()
+    await db.refresh(run)
+    return run
+
+
+async def get_pipeline_run_by_id(db: AsyncSession, run_id: int) -> PipelineRun | None:
+    result = await db.execute(select(PipelineRun).where(PipelineRun.id == run_id))
+    return result.scalar_one_or_none()
+
+
+async def get_latest_pipeline_run(db: AsyncSession, user_id: int | None = None) -> PipelineRun | None:
+    query = select(PipelineRun)
+    if user_id is not None:
+        query = query.where(PipelineRun.user_id == user_id)
+    result = await db.execute(query.order_by(PipelineRun.created_at.desc()))
+    return result.scalars().first()
+
+
+async def update_pipeline_run(
+    db: AsyncSession,
+    run_id: int,
+    *,
+    status: str | None = None,
+    fetched_count: int | None = None,
+    processed_count: int | None = None,
+    skipped_count: int | None = None,
+    failed_count: int | None = None,
+    started_at: datetime.datetime | None = None,
+    finished_at: datetime.datetime | None = None,
+    error_message: str | None = None,
+) -> PipelineRun | None:
+    run = await get_pipeline_run_by_id(db, run_id)
+    if not run:
+        return None
+
+    if status is not None:
+        run.status = status
+    if fetched_count is not None:
+        run.fetched_count = fetched_count
+    if processed_count is not None:
+        run.processed_count = processed_count
+    if skipped_count is not None:
+        run.skipped_count = skipped_count
+    if failed_count is not None:
+        run.failed_count = failed_count
+    if started_at is not None:
+        run.started_at = started_at
+    if finished_at is not None:
+        run.finished_at = finished_at
+    if error_message is not None:
+        run.error_message = error_message
+
+    await db.commit()
+    await db.refresh(run)
+    return run
