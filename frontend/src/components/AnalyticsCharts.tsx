@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { CategoryStat, PriorityStat } from "@/types";
 import {
     PieChart,
@@ -40,11 +41,26 @@ export function AnalyticsCharts({
     priorities,
     isLoading,
 }: AnalyticsChartsProps) {
+    const [chartsReady, setChartsReady] = useState(false);
+
+    useEffect(() => {
+        setChartsReady(true);
+    }, []);
+
     if (isLoading) {
         return (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 px-3 sm:px-6 pb-4">
                 <div className="skeleton h-48 rounded-xl" />
                 <div className="skeleton h-48 rounded-xl" />
+            </div>
+        );
+    }
+
+    if (!chartsReady) {
+        return (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 px-3 sm:px-6 pb-4">
+                <div className="skeleton h-56 rounded-xl" />
+                <div className="skeleton h-60 rounded-xl" />
             </div>
         );
     }
@@ -64,14 +80,14 @@ export function AnalyticsCharts({
     return (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 px-3 sm:px-6 pb-4 animate-fade-in" style={{ animationDelay: "300ms" }}>
             {/* Category Distribution */}
-            <div className="bg-white rounded-xl border border-slate-100 p-4">
+            <div className="bg-white rounded-xl border border-slate-100 p-4 min-w-0">
                 <h3 className="text-sm font-semibold text-slate-700 mb-3">
                     Category Distribution
                 </h3>
                 {categoryData.length > 0 ? (
                     <div className="flex flex-col sm:flex-row items-stretch gap-4">
-                        <div className="h-56 sm:h-40 w-full sm:w-1/2">
-                            <ResponsiveContainer width="100%" height="100%">
+                        <div className="h-56 sm:h-40 w-full sm:w-1/2 min-w-0 min-h-0">
+                            <ResponsiveContainer width="100%" height="100%" minWidth={120} minHeight={140}>
                                 <PieChart>
                                     <Pie
                                         data={categoryData}
@@ -118,13 +134,13 @@ export function AnalyticsCharts({
             </div>
 
             {/* Priority Breakdown */}
-            <div className="bg-white rounded-xl border border-slate-100 p-4">
+            <div className="bg-white rounded-xl border border-slate-100 p-4 min-w-0">
                 <h3 className="text-sm font-semibold text-slate-700 mb-3">
                     Priority Breakdown
                 </h3>
                 {priorityData.length > 0 ? (
-                    <div className="h-60 sm:h-44 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
+                    <div className="h-60 sm:h-44 w-full min-w-0 min-h-0">
+                        <ResponsiveContainer width="100%" height="100%" minWidth={180} minHeight={160}>
                             <BarChart data={priorityData} barGap={8}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                                 <XAxis
