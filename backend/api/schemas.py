@@ -1,5 +1,5 @@
 import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class EmailBase(BaseModel):
@@ -59,6 +59,10 @@ class PipelineStatus(BaseModel):
     run_id: int | None = None
     processed: int = 0
     message: str = ""
+
+
+class PipelineTriggerRequest(BaseModel):
+    limit: int = Field(default=50, ge=1, le=500)
 
 
 class PipelineRunOut(BaseModel):

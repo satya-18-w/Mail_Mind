@@ -19,7 +19,7 @@ export function EmailList({
 }: EmailListProps) {
     if (isLoading) {
         return (
-            <div className="mail-list-scroll h-full min-h-0 overflow-y-auto overscroll-contain">
+            <div className="h-auto md:mail-list-scroll md:h-full md:min-h-0 md:overflow-y-auto md:overscroll-contain">
                 {Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="px-4 py-4 border-b border-slate-100 animate-fade-in" style={{ animationDelay: `${i * 60}ms` }}>
                         <div className="flex items-start gap-3">
@@ -48,7 +48,7 @@ export function EmailList({
     }
 
     return (
-        <div className="mail-list-scroll h-full min-h-0 overflow-y-auto overscroll-contain">
+        <div className="h-auto md:mail-list-scroll md:h-full md:min-h-0 md:overflow-y-auto md:overscroll-contain">
             {emails.map((email, i) => (
                 <div key={email.id} className="animate-fade-in" style={{ animationDelay: `${i * 30}ms` }}>
                     <EmailCard

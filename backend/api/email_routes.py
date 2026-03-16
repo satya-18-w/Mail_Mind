@@ -16,6 +16,7 @@ from backend.api.schemas import (
     SearchRequest,
     SearchResult,
     PipelineStatus,
+    PipelineTriggerRequest,
     PipelineRunOut,
     StatsOverview,
 )
@@ -191,7 +192,8 @@ async def get_tasks(db: AsyncSession = Depends(get_db)):
 def _run_pipeline(db_url: str, run_id: int,
                   user_id: int | None = None,
                   access_token: str | None = None,
-                  refresh_token: str | None = None):
+                  refresh_token: str | None = None,
+                  max_results: int = 50):
     """Background task to fetch and process emails."""
     from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession as AS
     from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -223,7 +225,7 @@ def _run_pipeline(db_url: str, run_id: int,
         )
         try:
             fetcher.authenticate()
-            raw_emails = fetcher.fetch_emails(max_results=50, days=30)
+            raw_emails = fetcher.fetch_emails(max_results=max_results, days=30)
             counters["fetched"] = len(raw_emails)
 
             async with session_factory() as session:
@@ -321,6 +323,7 @@ async def trigger_pipeline(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
+    request: PipelineTriggerRequest | None = None,
 ):
     """Trigger the email processing pipeline."""
     from backend.core.config import get_settings
@@ -330,6 +333,7 @@ async def trigger_pipeline(
 
     settings = get_settings()
     run = await crud.create_pipeline_run(db, user_id=user.id)
+    fetch_limit = request.limit if request else 50
 
     background_tasks.add_task(
         _run_pipeline,
@@ -338,11 +342,12 @@ async def trigger_pipeline(
         user.id,
         user.gmail_access_token,
         user.gmail_refresh_token,
+        fetch_limit,
     )
     return PipelineStatus(
         status="started",
         run_id=run.id,
-        message="Pipeline triggered in background",
+        message=f"Pipeline triggered in background for up to {fetch_limit} emails",
     )
 
 

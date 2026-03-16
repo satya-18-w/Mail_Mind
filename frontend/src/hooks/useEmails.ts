@@ -108,7 +108,7 @@ export function useTasks() {
 export function useTriggerPipeline() {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: api.triggerPipeline,
+        mutationFn: ({ limit }: { limit: number }) => api.triggerPipeline({ limit }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["pipeline", "latest"] });
             setTimeout(() => {

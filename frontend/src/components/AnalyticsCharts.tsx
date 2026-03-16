@@ -70,31 +70,33 @@ export function AnalyticsCharts({
                 </h3>
                 {categoryData.length > 0 ? (
                     <div className="flex flex-col sm:flex-row items-stretch gap-4">
-                        <ResponsiveContainer width="100%" height={160}>
-                            <PieChart>
-                                <Pie
-                                    data={categoryData}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={35}
-                                    outerRadius={60}
-                                    paddingAngle={3}
-                                    dataKey="value"
-                                    stroke="none"
-                                >
-                                    {categoryData.map((entry, i) => (
-                                        <Cell key={`cell-${i}`} fill={entry.fill} />
-                                    ))}
-                                </Pie>
-                                <Tooltip
-                                    contentStyle={{
-                                        borderRadius: "8px",
-                                        border: "1px solid #e2e8f0",
-                                        fontSize: "12px",
-                                    }}
-                                />
-                            </PieChart>
-                        </ResponsiveContainer>
+                        <div className="h-56 sm:h-40 w-full sm:w-1/2">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={categoryData}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={35}
+                                        outerRadius={60}
+                                        paddingAngle={3}
+                                        dataKey="value"
+                                        stroke="none"
+                                    >
+                                        {categoryData.map((entry, i) => (
+                                            <Cell key={`cell-${i}`} fill={entry.fill} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip
+                                        contentStyle={{
+                                            borderRadius: "8px",
+                                            border: "1px solid #e2e8f0",
+                                            fontSize: "12px",
+                                        }}
+                                    />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
                         <div className="flex-1 space-y-1.5">
                             {categoryData.map((cat) => (
                                 <div key={cat.name} className="flex items-center justify-between text-xs">
@@ -121,34 +123,36 @@ export function AnalyticsCharts({
                     Priority Breakdown
                 </h3>
                 {priorityData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={180}>
-                        <BarChart data={priorityData} barGap={8}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                            <XAxis
-                                dataKey="name"
-                                tick={{ fontSize: 11, fill: "#64748b" }}
-                                axisLine={false}
-                                tickLine={false}
-                            />
-                            <YAxis
-                                tick={{ fontSize: 11, fill: "#64748b" }}
-                                axisLine={false}
-                                tickLine={false}
-                            />
-                            <Tooltip
-                                contentStyle={{
-                                    borderRadius: "8px",
-                                    border: "1px solid #e2e8f0",
-                                    fontSize: "12px",
-                                }}
-                            />
-                            <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={36}>
-                                {priorityData.map((entry, i) => (
-                                    <Cell key={`cell-${i}`} fill={entry.fill} />
-                                ))}
-                            </Bar>
-                        </BarChart>
-                    </ResponsiveContainer>
+                    <div className="h-60 sm:h-44 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={priorityData} barGap={8}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                                <XAxis
+                                    dataKey="name"
+                                    tick={{ fontSize: 11, fill: "#64748b" }}
+                                    axisLine={false}
+                                    tickLine={false}
+                                />
+                                <YAxis
+                                    tick={{ fontSize: 11, fill: "#64748b" }}
+                                    axisLine={false}
+                                    tickLine={false}
+                                />
+                                <Tooltip
+                                    contentStyle={{
+                                        borderRadius: "8px",
+                                        border: "1px solid #e2e8f0",
+                                        fontSize: "12px",
+                                    }}
+                                />
+                                <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={36}>
+                                    {priorityData.map((entry, i) => (
+                                        <Cell key={`cell-${i}`} fill={entry.fill} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
                 ) : (
                     <p className="text-sm text-slate-400 text-center py-8">No data yet</p>
                 )}

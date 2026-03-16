@@ -28,6 +28,13 @@ import type { Email } from "@/types";
 import { RefreshCw, LayoutDashboard, Keyboard, Menu, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
+const DEFAULT_FETCH_LIMIT = 50;
+
+function sanitizeFetchLimit(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_FETCH_LIMIT;
+  return Math.min(500, Math.max(1, Math.round(value)));
+}
+
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const queryClient = useQueryClient();
@@ -39,6 +46,7 @@ export default function Dashboard() {
   const [searchResults, setSearchResults] = useState<Email[] | null>(null);
   const [showAnalytics, setShowAnalytics] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [fetchLimit, setFetchLimit] = useState(DEFAULT_FETCH_LIMIT);
 
   // Data queries
   const { data: allEmails = [], isLoading: loadingAll } = useEmails();
@@ -81,6 +89,19 @@ export default function Dashboard() {
     }
     return "Scan Emails";
   })();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem("mailmind-fetch-limit");
+    if (!stored) return;
+    const parsed = Number(stored);
+    setFetchLimit(sanitizeFetchLimit(parsed));
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("mailmind-fetch-limit", String(fetchLimit));
+  }, [fetchLimit]);
 
   useEffect(() => {
     if (!latestRun) return;
@@ -150,7 +171,7 @@ export default function Dashboard() {
       }
       if (e.key === "r" && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
-        pipelineMutation.mutate();
+        pipelineMutation.mutate({ limit: fetchLimit });
       }
       if (e.key === "a" && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
@@ -247,7 +268,7 @@ export default function Dashboard() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto md:overflow-hidden overscroll-y-contain">
         {/* Header */}
         <header className="bg-white/80 backdrop-blur-md border-b border-slate-200/60 px-3 sm:px-6 py-3 flex items-center gap-2 sm:gap-4 sticky top-0 z-20">
           <button
@@ -277,6 +298,23 @@ export default function Dashboard() {
             <LayoutDashboard className="w-4.5 h-4.5" />
           </button>
 
+          <div className="hidden sm:flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+            <label htmlFor="fetch-limit" className="text-xs font-medium text-slate-500">
+              Fetch
+            </label>
+            <input
+              id="fetch-limit"
+              type="number"
+              min={1}
+              max={500}
+              step={1}
+              value={fetchLimit}
+              onChange={(e) => setFetchLimit(sanitizeFetchLimit(Number(e.target.value)))}
+              onBlur={() => setFetchLimit((current) => sanitizeFetchLimit(current))}
+              className="w-18 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
+            />
+          </div>
+
           <button
             onClick={() => setShowShortcuts(true)}
             className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 transition-colors"
@@ -286,7 +324,7 @@ export default function Dashboard() {
           </button>
 
           <button
-            onClick={() => pipelineMutation.mutate()}
+            onClick={() => pipelineMutation.mutate({ limit: fetchLimit })}
             disabled={isPipelineActive}
             className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 bg-linear-to-r from-indigo-600 to-violet-600 text-white text-xs sm:text-sm font-medium rounded-lg hover:from-indigo-700 hover:to-violet-700 disabled:opacity-50 transition-all shadow-sm hover:shadow-md active:scale-[0.98]"
           >
@@ -301,10 +339,30 @@ export default function Dashboard() {
           <UserMenu />
         </header>
 
+        <div className="sm:hidden px-3 py-2 border-b border-slate-200/60 bg-white/70 flex items-center justify-between gap-3">
+          <label htmlFor="fetch-limit-mobile" className="text-xs font-medium text-slate-500">
+            Emails to fetch
+          </label>
+          <input
+            id="fetch-limit-mobile"
+            type="number"
+            min={1}
+            max={500}
+            step={1}
+            value={fetchLimit}
+            onChange={(e) => setFetchLimit(sanitizeFetchLimit(Number(e.target.value)))}
+            onBlur={() => setFetchLimit((current) => sanitizeFetchLimit(current))}
+            className="w-20 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-700 text-right outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20"
+          />
+        </div>
+
         <ProfileSection user={user} />
 
         {latestRun && (
           <div className="px-3 sm:px-6 py-2 border-b border-slate-200/60 bg-white/60 text-xs sm:text-sm text-slate-600 flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span>
+              Next scan limit: <strong className="text-slate-800">{fetchLimit}</strong>
+            </span>
             <span>
               Pipeline: <strong className="text-slate-800">{latestRun.status}</strong>
             </span>
@@ -372,10 +430,10 @@ export default function Dashboard() {
         )}
 
         {/* Email list + Detail */}
-        <div className="flex flex-1 min-h-0">
+        <div className="flex flex-1 min-h-0 pb-4 sm:pb-0">
           <div
             className={`${selectedEmail ? "hidden md:block md:w-2/5" : "w-full"
-              } h-full min-h-0 md:border-r border-slate-200/60 overflow-hidden transition-all duration-300`}
+              } min-h-0 md:h-full md:border-r border-slate-200/60 overflow-visible md:overflow-hidden transition-all duration-300`}
           >
             <EmailList
               emails={displayEmails}
@@ -385,7 +443,7 @@ export default function Dashboard() {
             />
           </div>
           {selectedEmail && (
-            <div className="w-full md:w-3/5 h-full min-h-0 overflow-hidden animate-slide-right">
+            <div className="w-full md:w-3/5 min-h-0 md:h-full overflow-hidden animate-slide-right">
               <EmailDetailPanel
                 email={selectedEmail}
                 onClose={() => setSelectedEmail(null)}

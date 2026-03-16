@@ -10,6 +10,10 @@ import type {
     PipelineRun,
 } from "@/types";
 
+type TriggerPipelinePayload = {
+    limit: number;
+};
+
 function stripTrailingSlash(url: string): string {
     return url.endsWith("/") ? url.slice(0, -1) : url;
 }
@@ -189,8 +193,11 @@ export const api = {
         apiFetch<Task[]>("/tasks"),
 
     // Pipeline
-    triggerPipeline: () =>
-        apiFetch<PipelineStatus>("/pipeline/run", { method: "POST" }),
+    triggerPipeline: ({ limit }: TriggerPipelinePayload) =>
+        apiFetch<PipelineStatus>("/pipeline/run", {
+            method: "POST",
+            body: JSON.stringify({ limit }),
+        }),
 
     getLatestPipelineRun: () =>
         apiFetch<PipelineRun>("/pipeline/runs/latest"),
