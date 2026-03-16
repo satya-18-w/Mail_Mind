@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -19,8 +20,16 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     if settings.auto_create_tables:
         try:
-            async with engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
+            async def _create_tables() -> None:
+                async with engine.begin() as conn:
+                    await conn.run_sync(Base.metadata.create_all)
+
+            await asyncio.wait_for(
+                _create_tables(),
+                timeout=max(1, settings.db_init_timeout_seconds),
+            )
+        except TimeoutError:
+            logger.exception("Database initialization timed out during startup")
         except Exception:
             logger.exception("Database initialization failed during startup")
     yield

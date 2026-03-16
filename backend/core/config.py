@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     # Groq API (Free tier)
     groq_api_key: str = ""
 
+
     # App
     app_env: str = "development"
     secret_key: str = "change-this-to-a-random-secret-key"
@@ -32,7 +33,8 @@ class Settings(BaseSettings):
 
     # Runtime
     port: int = 8000
-    auto_create_tables: bool = True
+    auto_create_tables: bool = False
+    db_init_timeout_seconds: int = 12
 
     # --- Validators: normalise DB URL schemes regardless of what Railway injects ---
 
