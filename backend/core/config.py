@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
 
     # Runtime
-    port: int = 8000
+    port: int = 8080
     auto_create_tables: bool = False
     db_init_timeout_seconds: int = 12
 
