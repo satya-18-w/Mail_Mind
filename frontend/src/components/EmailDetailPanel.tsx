@@ -218,7 +218,7 @@ export function EmailDetailPanel({ email, onClose }: EmailDetailPanelProps) {
     return (
         <div className="h-full overflow-y-auto animate-fade-in">
             {/* Header */}
-            <div className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-slate-100 px-6 py-4 z-10">
+            <div className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-slate-100 px-4 sm:px-6 py-4 z-10">
                 <div className="flex items-center justify-between gap-3">
                     <button
                         onClick={onClose}
@@ -269,7 +269,7 @@ export function EmailDetailPanel({ email, onClose }: EmailDetailPanelProps) {
                 </div>
             </div>
 
-            <div className="px-6 py-5 space-y-5">
+            <div className="px-4 sm:px-6 py-5 space-y-5">
                 {/* Sender card */}
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-linear-to-br from-indigo-400 to-violet-400 flex items-center justify-center text-white text-sm font-semibold shrink-0">
@@ -334,7 +334,7 @@ export function EmailDetailPanel({ email, onClose }: EmailDetailPanelProps) {
                         {!email.body?.trim() ? (
                             <p className="text-slate-400 italic">No readable body content found in this email.</p>
                         ) : showOriginalBody ? (
-                            <pre className="whitespace-pre-wrap wrap-break-word font-sans text-sm text-slate-700">
+                            <pre className="whitespace-pre-wrap break-words overflow-x-auto font-sans text-sm text-slate-700">
                                 {email.body}
                             </pre>
                         ) : bodyBlocks.map((block, idx) => {
@@ -342,7 +342,7 @@ export function EmailDetailPanel({ email, onClose }: EmailDetailPanelProps) {
                                 return (
                                     <ul key={`ul-${idx}`} className="list-disc pl-5 space-y-1">
                                         {block.items.map((item, itemIdx) => (
-                                            <li key={`ul-${idx}-${itemIdx}`} className="wrap-break-word">
+                                            <li key={`ul-${idx}-${itemIdx}`} className="break-words">
                                                 {linkifyText(item)}
                                             </li>
                                         ))}
@@ -354,7 +354,7 @@ export function EmailDetailPanel({ email, onClose }: EmailDetailPanelProps) {
                                 return (
                                     <ol key={`ol-${idx}`} className="list-decimal pl-5 space-y-1">
                                         {block.items.map((item, itemIdx) => (
-                                            <li key={`ol-${idx}-${itemIdx}`} className="wrap-break-word">
+                                            <li key={`ol-${idx}-${itemIdx}`} className="break-words">
                                                 {linkifyText(item)}
                                             </li>
                                         ))}

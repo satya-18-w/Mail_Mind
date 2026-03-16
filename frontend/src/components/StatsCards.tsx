@@ -53,11 +53,11 @@ interface StatsCardsProps {
 
 export function StatsCards({ data, isLoading }: StatsCardsProps) {
     return (
-        <div className="grid grid-cols-5 gap-3 px-6 py-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 px-3 sm:px-6 py-4">
             {stats.map((stat, i) => (
                 <div
                     key={stat.key}
-                    className="bg-white rounded-xl border border-slate-100 p-4 card-hover animate-fade-in"
+                    className="bg-white rounded-xl border border-slate-100 p-3 sm:p-4 card-hover animate-fade-in"
                     style={{ animationDelay: `${i * 60}ms` }}
                 >
                     <div className="flex items-center justify-between mb-3">

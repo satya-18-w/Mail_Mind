@@ -56,9 +56,9 @@ export function EmailCard({ email, onClick, isSelected }: EmailCardProps) {
     return (
         <div
             onClick={() => onClick(email)}
-            className={`group relative p-4 cursor-pointer transition-all duration-200 border-b border-slate-100 hover:bg-slate-50 ${isSelected
-                    ? "bg-indigo-50/60 border-l-[3px] border-l-indigo-500"
-                    : "border-l-[3px] border-l-transparent"
+            className={`group relative p-3 sm:p-4 cursor-pointer transition-all duration-200 border-b border-slate-100 hover:bg-slate-50 ${isSelected
+                ? "bg-indigo-50/60 border-l-[3px] border-l-indigo-500"
+                : "border-l-[3px] border-l-transparent"
                 }`}
         >
             <div className="flex items-start gap-3">
@@ -77,8 +77,8 @@ export function EmailCard({ email, onClick, isSelected }: EmailCardProps) {
                     <div className="flex items-center justify-between gap-2">
                         <span
                             className={`text-sm truncate ${!email.is_read
-                                    ? "font-semibold text-slate-900"
-                                    : "font-medium text-slate-500"
+                                ? "font-semibold text-slate-900"
+                                : "font-medium text-slate-500"
                                 }`}
                         >
                             {email.sender.split("<")[0].trim()}
@@ -119,8 +119,8 @@ export function EmailCard({ email, onClick, isSelected }: EmailCardProps) {
                 <button
                     onClick={handleStar}
                     className={`shrink-0 p-1 rounded-md transition-all ${email.is_starred
-                            ? "text-amber-400"
-                            : "text-slate-300 opacity-0 group-hover:opacity-100"
+                        ? "text-amber-400"
+                        : "text-slate-300 opacity-100 md:opacity-0 md:group-hover:opacity-100"
                         } hover:text-amber-400`}
                 >
                     <Star

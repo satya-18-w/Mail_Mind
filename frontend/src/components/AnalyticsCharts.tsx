@@ -42,7 +42,7 @@ export function AnalyticsCharts({
 }: AnalyticsChartsProps) {
     if (isLoading) {
         return (
-            <div className="grid grid-cols-2 gap-4 px-6 pb-4">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 px-3 sm:px-6 pb-4">
                 <div className="skeleton h-48 rounded-xl" />
                 <div className="skeleton h-48 rounded-xl" />
             </div>
@@ -62,15 +62,15 @@ export function AnalyticsCharts({
     }));
 
     return (
-        <div className="grid grid-cols-2 gap-4 px-6 pb-4 animate-fade-in" style={{ animationDelay: "300ms" }}>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 px-3 sm:px-6 pb-4 animate-fade-in" style={{ animationDelay: "300ms" }}>
             {/* Category Distribution */}
             <div className="bg-white rounded-xl border border-slate-100 p-4">
                 <h3 className="text-sm font-semibold text-slate-700 mb-3">
                     Category Distribution
                 </h3>
                 {categoryData.length > 0 ? (
-                    <div className="flex items-center gap-4">
-                        <ResponsiveContainer width="50%" height={140}>
+                    <div className="flex flex-col sm:flex-row items-stretch gap-4">
+                        <ResponsiveContainer width="100%" height={160}>
                             <PieChart>
                                 <Pie
                                     data={categoryData}
@@ -121,7 +121,7 @@ export function AnalyticsCharts({
                     Priority Breakdown
                 </h3>
                 {priorityData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={140}>
+                    <ResponsiveContainer width="100%" height={180}>
                         <BarChart data={priorityData} barGap={8}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                             <XAxis

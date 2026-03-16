@@ -18,9 +18,9 @@ export function ProfileSection({ user }: ProfileSectionProps) {
         .slice(0, 2);
 
     return (
-        <section className="px-6 pt-4 pb-3 border-b border-slate-200/60 bg-white/60">
+        <section className="px-3 sm:px-6 pt-3 sm:pt-4 pb-3 border-b border-slate-200/60 bg-white/60">
             <div className="rounded-2xl border border-slate-200 bg-linear-to-r from-slate-50 to-white p-4 shadow-xs">
-                <div className="flex items-center gap-4">
+                <div className="flex items-start sm:items-center gap-3 sm:gap-4">
                     {user.picture ? (
                         <img
                             src={user.picture}
@@ -38,8 +38,8 @@ export function ProfileSection({ user }: ProfileSectionProps) {
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                             Logged in account
                         </p>
-                        <p className="text-base font-semibold text-slate-900 truncate">{user.name}</p>
-                        <p className="text-sm text-slate-600 truncate flex items-center gap-1.5">
+                        <p className="text-sm sm:text-base font-semibold text-slate-900 truncate">{user.name}</p>
+                        <p className="text-xs sm:text-sm text-slate-600 truncate flex items-center gap-1.5">
                             <Mail className="h-3.5 w-3.5 shrink-0" />
                             {user.email}
                         </p>
