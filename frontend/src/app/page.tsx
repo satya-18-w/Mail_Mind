@@ -375,7 +375,7 @@ export default function Dashboard() {
         <div className="flex flex-1 min-h-0">
           <div
             className={`${selectedEmail ? "hidden md:block md:w-2/5" : "w-full"
-              } md:border-r border-slate-200/60 overflow-hidden transition-all duration-300`}
+              } h-full min-h-0 md:border-r border-slate-200/60 overflow-hidden transition-all duration-300`}
           >
             <EmailList
               emails={displayEmails}
@@ -385,7 +385,7 @@ export default function Dashboard() {
             />
           </div>
           {selectedEmail && (
-            <div className="w-full md:w-3/5 overflow-hidden animate-slide-right">
+            <div className="w-full md:w-3/5 h-full min-h-0 overflow-hidden animate-slide-right">
               <EmailDetailPanel
                 email={selectedEmail}
                 onClose={() => setSelectedEmail(null)}

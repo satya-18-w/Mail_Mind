@@ -182,3 +182,20 @@ button:disabled {
   background: linear-gradient(180deg, #818cf8, #6366f1);
   border-radius: 0 2px 2px 0;
 }
+
+.mail-list-scroll {
+  scrollbar-gutter: stable;
+}
+
+.mail-list-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.mail-list-scroll::-webkit-scrollbar-thumb {
+  background-color: #94a3b8;
+  border-radius: 9999px;
+}
+
+.mail-list-scroll::-webkit-scrollbar-track {
+  background-color: #f8fafc;
+}
