@@ -5,6 +5,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 
 from backend.api.email_routes import router as email_router
 from backend.api.auth_routes import router as auth_router
@@ -59,6 +60,16 @@ app.add_middleware(
 
 app.include_router(email_router)
 app.include_router(auth_router)
+
+
+@app.get("/")
+async def root():
+    return {"service": "ai-mail-agent", "status": "ok"}
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return Response(status_code=204)
 
 
 @app.get("/health")
