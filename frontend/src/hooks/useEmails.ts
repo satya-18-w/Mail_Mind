@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 
@@ -120,14 +121,53 @@ export function useTriggerPipeline() {
 }
 
 export function useLatestPipelineRun(enabled = true) {
-    return useQuery({
+    const queryClient = useQueryClient();
+    const [streamConnected, setStreamConnected] = useState(false);
+
+    const query = useQuery({
         queryKey: ["pipeline", "latest"],
         queryFn: api.getLatestPipelineRun,
         enabled,
         retry: false,
         refetchInterval: (query) => {
+            if (streamConnected) return false;
             const status = query.state.data?.status;
-            return status === "RUNNING" || status === "QUEUED" ? 3000 : false;
+            return status === "RUNNING" || status === "QUEUED" ? 5000 : false;
         },
     });
+
+    useEffect(() => {
+        if (!enabled) return;
+
+        let isActive = true;
+        let teardown: (() => void) | undefined;
+        let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+
+        const connect = () => {
+            if (!isActive) return;
+
+            teardown = api.streamLatestPipelineRun({
+                onMessage: (run) => {
+                    setStreamConnected(true);
+                    queryClient.setQueryData(["pipeline", "latest"], run);
+                },
+                onError: () => {
+                    setStreamConnected(false);
+                    if (!isActive) return;
+                    reconnectTimer = setTimeout(connect, 3000);
+                },
+            });
+        };
+
+        connect();
+
+        return () => {
+            isActive = false;
+            setStreamConnected(false);
+            if (reconnectTimer) clearTimeout(reconnectTimer);
+            teardown?.();
+        };
+    }, [enabled, queryClient]);
+
+    return query;
 }

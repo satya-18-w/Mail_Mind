@@ -47,6 +47,8 @@ export default function Dashboard() {
   const [showAnalytics, setShowAnalytics] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [fetchLimit, setFetchLimit] = useState(DEFAULT_FETCH_LIMIT);
+  const lastProgressRefreshAtRef = useRef(0);
+  const lastPipelineDoneRef = useRef(0);
 
   // Data queries
   const { data: allEmails = [], isLoading: loadingAll } = useEmails();
@@ -110,6 +112,26 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ["stats"] });
     }
   }, [latestRun, queryClient]);
+
+  useEffect(() => {
+    if (!latestRun) return;
+    if (latestRun.status !== "RUNNING") {
+      lastPipelineDoneRef.current = pipelineDone;
+      return;
+    }
+
+    const progressed = pipelineDone > lastPipelineDoneRef.current;
+    const now = Date.now();
+    const throttled = now - lastProgressRefreshAtRef.current < 2500;
+
+    if (progressed && !throttled) {
+      lastProgressRefreshAtRef.current = now;
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+    }
+
+    lastPipelineDoneRef.current = pipelineDone;
+  }, [latestRun, pipelineDone, queryClient]);
 
   // Determine which emails to show
   let displayEmails: Email[] = [];

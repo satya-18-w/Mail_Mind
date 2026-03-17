@@ -67,8 +67,16 @@ async def update_user_tokens(
 # ─── Email Operations ────────────────────────────────────────
 
 
-async def upsert_email(db: AsyncSession, email_data: dict) -> Email:
-    """Insert or update an email record."""
+async def upsert_email(
+    db: AsyncSession,
+    email_data: dict,
+    *,
+    autocommit: bool = True,
+) -> Email:
+    """Insert or update an email record.
+
+    Set autocommit=False to batch multiple writes in one transaction.
+    """
     lookup = select(Email).where(Email.gmail_id == email_data["gmail_id"])
     if email_data.get("user_id") is not None:
         lookup = lookup.where(Email.user_id == email_data["user_id"])
@@ -86,7 +94,10 @@ async def upsert_email(db: AsyncSession, email_data: dict) -> Email:
         db.add(email)
 
     try:
-        await db.commit()
+        if autocommit:
+            await db.commit()
+        else:
+            await db.flush()
     except IntegrityError:
         # Another concurrent worker inserted the same Gmail message first.
         await db.rollback()
@@ -98,9 +109,13 @@ async def upsert_email(db: AsyncSession, email_data: dict) -> Email:
             if key != "gmail_id" and value is not None:
                 setattr(existing, key, value)
         email = existing
-        await db.commit()
+        if autocommit:
+            await db.commit()
+        else:
+            await db.flush()
 
-    await db.refresh(email)
+    if autocommit:
+        await db.refresh(email)
     return email
 
 
@@ -111,6 +126,23 @@ async def email_exists(db: AsyncSession, gmail_id: str, user_id: int | None = No
         query = query.where(Email.user_id == user_id)
     result = await db.execute(query)
     return result.scalar() > 0
+
+
+async def get_existing_gmail_ids(
+    db: AsyncSession,
+    gmail_ids: list[str],
+    user_id: int | None = None,
+) -> set[str]:
+    """Fetch already persisted Gmail IDs with a single query."""
+    if not gmail_ids:
+        return set()
+
+    query = select(Email.gmail_id).where(Email.gmail_id.in_(gmail_ids))
+    if user_id is not None:
+        query = query.where(Email.user_id == user_id)
+
+    result = await db.execute(query)
+    return set(result.scalars().all())
 
 
 async def get_emails_by_category(
@@ -247,8 +279,16 @@ async def get_stats_overview(
     }
 
 
-async def create_task_from_email(db: AsyncSession, email: Email) -> Task | None:
-    """Create a task if email has a deadline."""
+async def create_task_from_email(
+    db: AsyncSession,
+    email: Email,
+    *,
+    autocommit: bool = True,
+) -> Task | None:
+    """Create a task if email has a deadline.
+
+    Set autocommit=False to batch task writes in one transaction.
+    """
     if not email.deadline:
         return None
 
@@ -259,8 +299,11 @@ async def create_task_from_email(db: AsyncSession, email: Email) -> Task | None:
         priority=email.priority,
     )
     db.add(task)
-    await db.commit()
-    await db.refresh(task)
+    if autocommit:
+        await db.commit()
+        await db.refresh(task)
+    else:
+        await db.flush()
     return task
 
 

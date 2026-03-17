@@ -14,6 +14,11 @@ type TriggerPipelinePayload = {
     limit: number;
 };
 
+type PipelineStreamHandlers = {
+    onMessage: (run: PipelineRun) => void;
+    onError?: (error: unknown) => void;
+};
+
 function stripTrailingSlash(url: string): string {
     return url.endsWith("/") ? url.slice(0, -1) : url;
 }
@@ -127,6 +132,21 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     return res.json();
 }
 
+function parseSseEventChunk(chunk: string): PipelineRun | null {
+    const lines = chunk.split("\n");
+    let data = "";
+
+    for (const line of lines) {
+        if (line.startsWith("data:")) {
+            data += `${line.slice(5).trim()}\n`;
+        }
+    }
+
+    const trimmed = data.trim();
+    if (!trimmed) return null;
+    return JSON.parse(trimmed) as PipelineRun;
+}
+
 export const api = {
     // Auth
     getGoogleLoginUrl: () => {
@@ -204,4 +224,60 @@ export const api = {
 
     getPipelineRun: (runId: number) =>
         apiFetch<PipelineRun>(`/pipeline/runs/${runId}`),
+
+    streamLatestPipelineRun: ({ onMessage, onError }: PipelineStreamHandlers) => {
+        const controller = new AbortController();
+
+        const run = async () => {
+            const token = getToken();
+            if (!token) {
+                throw new Error("Unauthorized");
+            }
+
+            const response = await fetch(`${getApiBase()}/pipeline/runs/stream`, {
+                method: "GET",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    Accept: "text/event-stream",
+                },
+                signal: controller.signal,
+                cache: "no-store",
+            });
+
+            if (!response.ok || !response.body) {
+                throw new Error(`Pipeline stream failed: ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const events = buffer.split("\n\n");
+                buffer = events.pop() ?? "";
+
+                for (const eventChunk of events) {
+                    if (!eventChunk.trim() || eventChunk.startsWith(":")) {
+                        continue;
+                    }
+                    const payload = parseSseEventChunk(eventChunk);
+                    if (payload) {
+                        onMessage(payload);
+                    }
+                }
+            }
+        };
+
+        run().catch((error) => {
+            if (!controller.signal.aborted) {
+                onError?.(error);
+            }
+        });
+
+        return () => controller.abort();
+    },
 };

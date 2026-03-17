@@ -5,6 +5,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 from httpx import AsyncClient, ASGITransport
 
 from backend.main import app
+from backend.api.dependencies import get_current_user
 
 
 @pytest.fixture
@@ -113,9 +114,15 @@ async def test_category_stats():
 async def test_trigger_pipeline():
     """Test pipeline trigger endpoint returns started status."""
     transport = ASGITransport(app=app)
+    async def fake_current_user():
+        return MagicMock(id=1, gmail_access_token="token", gmail_refresh_token="refresh")
+
+    app.dependency_overrides[get_current_user] = fake_current_user
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        with patch("backend.api.email_routes._run_pipeline"):
+        with patch("backend.api.email_routes._run_pipeline"), patch("backend.api.email_routes.crud") as mock_crud:
+            mock_crud.create_pipeline_run = AsyncMock(return_value=MagicMock(id=123))
             response = await client.post("/api/v1/pipeline/run")
+    app.dependency_overrides.clear()
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "started"

@@ -2,8 +2,10 @@
 
 import asyncio
 import datetime
+import json
 import logging
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database.session import get_db
@@ -24,6 +26,9 @@ from backend.api.dependencies import get_current_user, get_optional_user
 
 router = APIRouter(prefix="/api/v1", tags=["emails"])
 logger = logging.getLogger(__name__)
+
+# Number of emails to enrich in parallel (LLM calls run concurrently in threads).
+PIPELINE_AI_CONCURRENCY = 4
 
 
 # --- Email Endpoints ---
@@ -204,92 +209,120 @@ def _run_pipeline(db_url: str, run_id: int,
         engine = create_async_engine(db_url)
         session_factory = async_sessionmaker(engine, class_=AS, expire_on_commit=False)
 
-        counters = {
-            "fetched": 0,
-            "processed": 0,
-            "skipped": 0,
-            "failed": 0,
-        }
+        counters = {"fetched": 0, "processed": 0, "skipped": 0, "failed": 0}
 
         async with session_factory() as session:
             await crud.update_pipeline_run(
-                session,
-                run_id,
+                session, run_id,
                 status="RUNNING",
                 started_at=datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
             )
 
-        fetcher = GmailFetcher(
-            access_token=access_token,
-            refresh_token=refresh_token,
-        )
+        fetcher = GmailFetcher(access_token=access_token, refresh_token=refresh_token)
         try:
             fetcher.authenticate()
             raw_emails = fetcher.fetch_emails(max_results=max_results, days=30)
             counters["fetched"] = len(raw_emails)
 
             async with session_factory() as session:
-                await crud.update_pipeline_run(
-                    session,
-                    run_id,
-                    fetched_count=counters["fetched"],
-                )
+                raw_ids = [r.get("gmail_id") for r in raw_emails if r.get("gmail_id")]
+                existing_ids = await crud.get_existing_gmail_ids(session, raw_ids, user_id=user_id)
 
+                await crud.update_pipeline_run(session, run_id, fetched_count=counters["fetched"])
+
+                # Partition: skip already-stored, queue new emails for AI enrichment
+                to_enrich: list[dict] = []
                 for raw in raw_emails:
-                    try:
-                        # Skip already-processed emails for performance
-                        if await crud.email_exists(session, raw["gmail_id"], user_id=user_id):
-                            counters["skipped"] += 1
-                            continue
-
-                        enriched = process_email(raw)
-
-                        # Convert deadline
-                        deadline_val = None
-                        if enriched.get("deadline"):
-                            try:
-                                deadline_val = datetime.date.fromisoformat(enriched["deadline"])
-                            except (ValueError, TypeError):
-                                deadline_val = None
-
-                        # Convert timestamp
-                        ts = enriched.get("timestamp", datetime.datetime.now(datetime.timezone.utc))
-                        if isinstance(ts, str):
-                            try:
-                                ts = datetime.datetime.fromisoformat(ts)
-                            except ValueError:
-                                ts = datetime.datetime.now(datetime.timezone.utc)
-                        if hasattr(ts, "tzinfo") and ts.tzinfo is not None:
-                            ts = ts.replace(tzinfo=None)
-
-                        email_data = {
-                            "gmail_id": enriched["gmail_id"],
-                            "sender": enriched["sender"],
-                            "subject": enriched["subject"],
-                            "body": enriched["body"],
-                            "timestamp": ts,
-                            "category": enriched.get("category"),
-                            "subcategory": enriched.get("subcategory"),
-                            "priority": enriched.get("priority"),
-                            "deadline": deadline_val,
-                            "summary": enriched.get("summary"),
-                            "embedding": enriched.get("embedding"),
-                            "user_id": user_id,
-                        }
-
-                        email = await crud.upsert_email(session, email_data)
-                        await crud.create_task_from_email(session, email)
-                        counters["processed"] += 1
-                    except Exception:
+                    gid = raw.get("gmail_id")
+                    if not gid:
                         counters["failed"] += 1
-                        logger.exception("Failed to process one email in run_id=%s", run_id)
+                    elif gid in existing_ids:
+                        counters["skipped"] += 1
+                    else:
+                        to_enrich.append(raw)
 
-                # Clean up old emails
+                if counters["skipped"] or counters["failed"]:
+                    await crud.update_pipeline_run(
+                        session, run_id, status="RUNNING",
+                        fetched_count=counters["fetched"],
+                        skipped_count=counters["skipped"],
+                        failed_count=counters["failed"],
+                    )
+
+                # ── Parallel AI enrichment: process PIPELINE_AI_CONCURRENCY emails at a time.
+                # Each batch runs LLM calls concurrently in threads, then writes to DB and
+                # commits so the SSE stream can push live progress to the frontend.
+                for batch_start in range(0, len(to_enrich), PIPELINE_AI_CONCURRENCY):
+                    batch = to_enrich[batch_start:batch_start + PIPELINE_AI_CONCURRENCY]
+
+                    results = await asyncio.gather(
+                        *[asyncio.to_thread(process_email, raw) for raw in batch],
+                        return_exceptions=True,
+                    )
+
+                    for raw, enriched in zip(batch, results):
+                        if isinstance(enriched, BaseException):
+                            counters["failed"] += 1
+                            logger.exception(
+                                "AI enrichment failed gmail_id=%s run_id=%s",
+                                raw.get("gmail_id"), run_id, exc_info=enriched,
+                            )
+                            continue
+                        try:
+                            gmail_id = enriched["gmail_id"]
+                            deadline_val = None
+                            if enriched.get("deadline"):
+                                try:
+                                    deadline_val = datetime.date.fromisoformat(enriched["deadline"])
+                                except (ValueError, TypeError):
+                                    deadline_val = None
+
+                            ts = enriched.get("timestamp", datetime.datetime.now(datetime.timezone.utc))
+                            if isinstance(ts, str):
+                                try:
+                                    ts = datetime.datetime.fromisoformat(ts)
+                                except ValueError:
+                                    ts = datetime.datetime.now(datetime.timezone.utc)
+                            if hasattr(ts, "tzinfo") and ts.tzinfo is not None:
+                                ts = ts.replace(tzinfo=None)
+
+                            email_data = {
+                                "gmail_id": gmail_id,
+                                "sender": enriched["sender"],
+                                "subject": enriched["subject"],
+                                "body": enriched["body"],
+                                "timestamp": ts,
+                                "category": enriched.get("category"),
+                                "subcategory": enriched.get("subcategory"),
+                                "priority": enriched.get("priority"),
+                                "deadline": deadline_val,
+                                "summary": enriched.get("summary"),
+                                "embedding": enriched.get("embedding"),
+                                "user_id": user_id,
+                            }
+
+                            email = await crud.upsert_email(session, email_data, autocommit=False)
+                            await crud.create_task_from_email(session, email, autocommit=False)
+                            existing_ids.add(gmail_id)
+                            counters["processed"] += 1
+                        except Exception:
+                            counters["failed"] += 1
+                            logger.exception("DB write failed for run_id=%s", run_id)
+
+                    # Commit this batch and push progress so the SSE stream picks it up
+                    await session.commit()
+                    await crud.update_pipeline_run(
+                        session, run_id, status="RUNNING",
+                        fetched_count=counters["fetched"],
+                        processed_count=counters["processed"],
+                        skipped_count=counters["skipped"],
+                        failed_count=counters["failed"],
+                    )
+
+                # Final cleanup and completion mark
                 await crud.delete_old_emails(session, days=30)
-
                 await crud.update_pipeline_run(
-                    session,
-                    run_id,
+                    session, run_id,
                     status="COMPLETED",
                     fetched_count=counters["fetched"],
                     processed_count=counters["processed"],
@@ -302,8 +335,7 @@ def _run_pipeline(db_url: str, run_id: int,
             logger.exception("Pipeline run failed run_id=%s", run_id)
             async with session_factory() as session:
                 await crud.update_pipeline_run(
-                    session,
-                    run_id,
+                    session, run_id,
                     status="FAILED",
                     fetched_count=counters["fetched"],
                     processed_count=counters["processed"],
@@ -360,6 +392,48 @@ async def get_latest_pipeline_run(
     if not run:
         raise HTTPException(status_code=404, detail="No pipeline runs found")
     return run
+
+
+@router.get("/pipeline/runs/stream")
+async def stream_latest_pipeline_run(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    async def event_generator():
+        last_payload: str | None = None
+
+        while True:
+            if await request.is_disconnected():
+                break
+
+            run = await crud.get_latest_pipeline_run(db, user_id=user.id)
+            if run is None:
+                await asyncio.sleep(2)
+                continue
+
+            payload = PipelineRunOut.model_validate(run).model_dump(mode="json")
+            payload_str = json.dumps(payload)
+            if payload_str != last_payload:
+                yield f"event: pipeline\\ndata: {payload_str}\\n\\n"
+                last_payload = payload_str
+
+            if payload["status"] in {"RUNNING", "QUEUED"}:
+                await asyncio.sleep(1)
+            else:
+                # Keep connection alive while idle and wait for next run changes.
+                yield ": keep-alive\\n\\n"
+                await asyncio.sleep(10)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/pipeline/runs/{run_id}", response_model=PipelineRunOut)
