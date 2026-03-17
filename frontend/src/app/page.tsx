@@ -78,8 +78,11 @@ export default function Dashboard() {
     (latestRun?.processed_count ?? 0) +
     (latestRun?.skipped_count ?? 0) +
     (latestRun?.failed_count ?? 0);
-  const pipelinePercent = pipelineTotal > 0
-    ? Math.min(100, Math.round((pipelineDone / pipelineTotal) * 100))
+  const pipelineEffectiveTotal = pipelineTotal > 0
+    ? pipelineTotal
+    : (isPipelineActive ? fetchLimit : 0);
+  const pipelinePercent = pipelineEffectiveTotal > 0
+    ? Math.min(100, Math.round((pipelineDone / pipelineEffectiveTotal) * 100))
     : 0;
 
   const pipelineLabel = (() => {
@@ -405,14 +408,12 @@ export default function Dashboard() {
             <div className="flex items-center justify-between text-xs text-slate-600 mb-1.5">
               <span>
                 AI has read <strong className="text-slate-800">{latestRun?.processed_count ?? 0}</strong>
-                {pipelineTotal > 0 ? ` / ${pipelineTotal}` : " emails"}
+                {pipelineEffectiveTotal > 0 ? ` / ${pipelineEffectiveTotal}` : " emails"}
               </span>
-              <span>
-                {pipelineTotal > 0 ? `${pipelinePercent}%` : "Preparing inbox scan..."}
-              </span>
+              <span>{`${pipelinePercent}%`}</span>
             </div>
             <div className="h-2 w-full rounded-full bg-slate-200 overflow-hidden">
-              {pipelineTotal > 0 ? (
+              {pipelineEffectiveTotal > 0 ? (
                 <div
                   className="h-full bg-linear-to-r from-indigo-500 to-violet-500 transition-all duration-500"
                   style={{ width: `${pipelinePercent}%` }}
