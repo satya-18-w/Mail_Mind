@@ -22,7 +22,7 @@ from backend.api.schemas import (
     PipelineRunOut,
     StatsOverview,
 )
-from backend.api.dependencies import get_current_user, get_optional_user
+from backend.api.dependencies import get_current_user
 
 router = APIRouter(prefix="/api/v1", tags=["emails"])
 logger = logging.getLogger(__name__)
@@ -39,11 +39,10 @@ async def list_emails(
     limit: int = 50,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
-    user: User | None = Depends(get_optional_user),
+    user: User = Depends(get_current_user),
 ):
     """Get all emails ordered by timestamp."""
-    uid = user.id if user else None
-    return await crud.get_all_emails(db, limit=limit, offset=offset, user_id=uid)
+    return await crud.get_all_emails(db, limit=limit, offset=offset, user_id=user.id)
 
 
 @router.get("/emails/starred", response_model=list[EmailOut])
@@ -51,36 +50,35 @@ async def list_starred_emails(
     limit: int = 50,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
-    user: User | None = Depends(get_optional_user),
+    user: User = Depends(get_current_user),
 ):
     """Get starred emails."""
-    uid = user.id if user else None
-    return await crud.get_starred_emails(db, limit=limit, offset=offset, user_id=uid)
+    return await crud.get_starred_emails(db, limit=limit, offset=offset, user_id=user.id)
 
 
 @router.get("/emails/{email_id}", response_model=EmailOut)
-async def get_email(email_id: int, db: AsyncSession = Depends(get_db)):
+async def get_email(email_id: int, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     """Get a single email by ID."""
     email = await crud.get_email_by_id(db, email_id)
-    if not email:
+    if not email or getattr(email, "user_id", None) != user.id:
         raise HTTPException(status_code=404, detail="Email not found")
     return email
 
 
 @router.patch("/emails/{email_id}/read", response_model=EmailOut)
-async def mark_as_read(email_id: int, db: AsyncSession = Depends(get_db)):
+async def mark_as_read(email_id: int, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     """Mark an email as read."""
     email = await crud.mark_email_as_read(db, email_id)
-    if not email:
+    if not email or getattr(email, "user_id", None) != user.id:
         raise HTTPException(status_code=404, detail="Email not found")
     return email
 
 
 @router.patch("/emails/{email_id}/star", response_model=EmailOut)
-async def toggle_star(email_id: int, db: AsyncSession = Depends(get_db)):
+async def toggle_star(email_id: int, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     """Toggle the starred state of an email."""
     email = await crud.toggle_star_email(db, email_id)
-    if not email:
+    if not email or getattr(email, "user_id", None) != user.id:
         raise HTTPException(status_code=404, detail="Email not found")
     return email
 
@@ -91,14 +89,13 @@ async def get_emails_by_category(
     limit: int = 50,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
-    user: User | None = Depends(get_optional_user),
+    user: User = Depends(get_current_user),
 ):
     """Get emails filtered by category."""
     valid_categories = {"Institute", "Professor", "LinkedIn", "Society", "Promotion", "Personal"}
     if category not in valid_categories:
         raise HTTPException(status_code=400, detail=f"Invalid category. Must be one of: {valid_categories}")
-    uid = user.id if user else None
-    return await crud.get_emails_by_category(db, category, limit=limit, offset=offset, user_id=uid)
+    return await crud.get_emails_by_category(db, category, limit=limit, offset=offset, user_id=user.id)
 
 
 @router.get("/emails/priority/{priority}", response_model=list[EmailOut])
@@ -107,25 +104,23 @@ async def get_emails_by_priority(
     limit: int = 50,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
-    user: User | None = Depends(get_optional_user),
+    user: User = Depends(get_current_user),
 ):
     """Get emails filtered by priority."""
     valid_priorities = {"HIGH", "MEDIUM", "LOW"}
     if priority.upper() not in valid_priorities:
         raise HTTPException(status_code=400, detail="Invalid priority. Must be HIGH, MEDIUM, or LOW")
-    uid = user.id if user else None
-    return await crud.get_emails_by_priority(db, priority.upper(), limit=limit, offset=offset, user_id=uid)
+    return await crud.get_emails_by_priority(db, priority.upper(), limit=limit, offset=offset, user_id=user.id)
 
 
 @router.get("/emails/deadlines/upcoming", response_model=list[EmailOut])
 async def get_deadlines(
     limit: int = 50,
     db: AsyncSession = Depends(get_db),
-    user: User | None = Depends(get_optional_user),
+    user: User = Depends(get_current_user),
 ):
     """Get emails with upcoming deadlines."""
-    uid = user.id if user else None
-    return await crud.get_emails_with_deadlines(db, limit=limit, user_id=uid)
+    return await crud.get_emails_with_deadlines(db, limit=limit, user_id=user.id)
 
 
 # --- Search ---
@@ -135,16 +130,15 @@ async def get_deadlines(
 async def search_emails(
     request: SearchRequest,
     db: AsyncSession = Depends(get_db),
-    user: User | None = Depends(get_optional_user),
+    user: User = Depends(get_current_user),
 ):
     """Semantic search across emails."""
     from backend.services.embedding_service import EmbeddingService
 
     embedding_service = EmbeddingService()
     query_embedding = embedding_service.embed(request.query)
-    uid = user.id if user else None
     emails = await crud.search_emails_by_vector(
-        db, query_embedding, limit=request.limit, user_id=uid
+        db, query_embedding, limit=request.limit, user_id=user.id
     )
     return SearchResult(emails=emails)
 
@@ -155,40 +149,37 @@ async def search_emails(
 @router.get("/stats/overview", response_model=StatsOverview)
 async def get_overview_stats(
     db: AsyncSession = Depends(get_db),
-    user: User | None = Depends(get_optional_user),
+    user: User = Depends(get_current_user),
 ):
     """Get aggregate dashboard statistics."""
-    uid = user.id if user else None
-    return await crud.get_stats_overview(db, user_id=uid)
+    return await crud.get_stats_overview(db, user_id=user.id)
 
 
 @router.get("/stats/categories")
 async def get_category_stats(
     db: AsyncSession = Depends(get_db),
-    user: User | None = Depends(get_optional_user),
+    user: User = Depends(get_current_user),
 ):
     """Get email counts per category."""
-    uid = user.id if user else None
-    return await crud.get_category_counts(db, user_id=uid)
+    return await crud.get_category_counts(db, user_id=user.id)
 
 
 @router.get("/stats/priorities")
 async def get_priority_stats(
     db: AsyncSession = Depends(get_db),
-    user: User | None = Depends(get_optional_user),
+    user: User = Depends(get_current_user),
 ):
     """Get email counts per priority level."""
-    uid = user.id if user else None
-    return await crud.get_priority_counts(db, user_id=uid)
+    return await crud.get_priority_counts(db, user_id=user.id)
 
 
 # --- Tasks ---
 
 
 @router.get("/tasks", response_model=list[TaskOut])
-async def get_tasks(db: AsyncSession = Depends(get_db)):
+async def get_tasks(db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     """Get all pending tasks."""
-    return await crud.get_pending_tasks(db)
+    return await crud.get_pending_tasks(db, user_id=user.id)
 
 
 # --- Pipeline Trigger ---
@@ -449,7 +440,7 @@ async def get_pipeline_run(
 
 
 @router.delete("/emails/cleanup")
-async def cleanup_old_emails(days: int = 30, db: AsyncSession = Depends(get_db)):
+async def cleanup_old_emails(days: int = 30, db: AsyncSession = Depends(get_db), user: User = Depends(get_current_user)):
     """Delete emails older than the specified number of days."""
-    deleted = await crud.delete_old_emails(db, days=days)
+    deleted = await crud.delete_old_emails(db, days=days, user_id=user.id)
     return {"deleted": deleted, "message": f"Removed {deleted} emails older than {days} days"}

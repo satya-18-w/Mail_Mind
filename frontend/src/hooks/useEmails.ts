@@ -4,10 +4,16 @@ import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 
+function hasToken(): boolean {
+    if (typeof window === "undefined") return false;
+    return !!localStorage.getItem("token");
+}
+
 export function useEmails(limit = 50, offset = 0) {
     return useQuery({
         queryKey: ["emails", limit, offset],
         queryFn: () => api.getEmails(limit, offset),
+        enabled: hasToken(),
     });
 }
 
@@ -45,6 +51,7 @@ export function useStarredEmails() {
     return useQuery({
         queryKey: ["emails", "starred"],
         queryFn: () => api.getStarredEmails(),
+        enabled: hasToken(),
     });
 }
 
@@ -68,6 +75,7 @@ export function useDeadlines() {
     return useQuery({
         queryKey: ["emails", "deadlines"],
         queryFn: () => api.getDeadlines(),
+        enabled: hasToken(),
     });
 }
 
@@ -82,6 +90,7 @@ export function useStatsOverview() {
     return useQuery({
         queryKey: ["stats", "overview"],
         queryFn: api.getStatsOverview,
+        enabled: hasToken(),
     });
 }
 
@@ -89,6 +98,7 @@ export function useCategoryStats() {
     return useQuery({
         queryKey: ["stats", "categories"],
         queryFn: api.getCategoryStats,
+        enabled: hasToken(),
     });
 }
 
@@ -96,6 +106,7 @@ export function usePriorityStats() {
     return useQuery({
         queryKey: ["stats", "priorities"],
         queryFn: api.getPriorityStats,
+        enabled: hasToken(),
     });
 }
 
@@ -103,6 +114,7 @@ export function useTasks() {
     return useQuery({
         queryKey: ["tasks"],
         queryFn: api.getTasks,
+        enabled: hasToken(),
     });
 }
 

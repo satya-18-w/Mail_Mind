@@ -307,13 +307,15 @@ async def create_task_from_email(
     return task
 
 
-async def get_pending_tasks(db: AsyncSession) -> list[Task]:
+async def get_pending_tasks(db: AsyncSession, user_id: int | None = None) -> list[Task]:
     """Get all pending tasks ordered by deadline."""
-    result = await db.execute(
+    query = (
         select(Task)
         .where(Task.status == TaskStatus.PENDING)
-        .order_by(Task.deadline.asc())
     )
+    if user_id is not None:
+        query = query.join(Email, Task.email_id == Email.id).where(Email.user_id == user_id)
+    result = await db.execute(query.order_by(Task.deadline.asc()))
     return list(result.scalars().all())
 
 
@@ -353,14 +355,18 @@ async def get_starred_emails(
     return list(result.scalars().all())
 
 
-async def delete_old_emails(db: AsyncSession, days: int = 30) -> int:
+async def delete_old_emails(db: AsyncSession, days: int = 30, user_id: int | None = None) -> int:
     """Delete emails older than the specified number of days. Returns count of deleted emails."""
     cutoff = datetime.datetime.now() - datetime.timedelta(days=days)
 
-    old_email_ids = select(Email.id).where(Email.timestamp < cutoff)
+    email_filter = Email.timestamp < cutoff
+    if user_id is not None:
+        email_filter = email_filter & (Email.user_id == user_id)
+
+    old_email_ids = select(Email.id).where(email_filter)
     await db.execute(delete(Task).where(Task.email_id.in_(old_email_ids)))
 
-    result = await db.execute(delete(Email).where(Email.timestamp < cutoff))
+    result = await db.execute(delete(Email).where(email_filter))
     deleted_count = result.rowcount
     await db.commit()
     return deleted_count

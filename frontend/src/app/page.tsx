@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { EmailList } from "@/components/EmailList";
 import { EmailDetailPanel } from "@/components/EmailDetailPanel";
@@ -36,7 +37,29 @@ function sanitizeFetchLimit(value: number): number {
 }
 
 export default function Dashboard() {
-  const { user, logout } = useAuth();
+  const { user, logout, isAuthenticated, isLoading: authLoading } = useAuth();
+  const router = useRouter();
+
+  // Auth guard: redirect unauthenticated users to /login
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.replace("/login");
+    }
+  }, [authLoading, isAuthenticated, router]);
+
+  // Show loading spinner while checking auth
+  if (authLoading) {
+    return (
+      <div className="flex h-dvh items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-indigo-500 border-t-transparent" />
+      </div>
+    );
+  }
+
+  // Don't render dashboard until authenticated (redirect is in progress)
+  if (!isAuthenticated) {
+    return null;
+  }
   const queryClient = useQueryClient();
   const [selectedView, setSelectedView] = useState("all");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
