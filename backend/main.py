@@ -45,7 +45,10 @@ app = FastAPI(
 
 settings = get_settings()
 
-allowed_origins = ["https://mail-mind-six.vercel.app"]
+allowed_origins = [
+    "http://localhost:3000",
+    "https://mail-mind-six.vercel.app",
+]
 if settings.frontend_url and settings.frontend_url not in allowed_origins:
     allowed_origins.append(settings.frontend_url)
 

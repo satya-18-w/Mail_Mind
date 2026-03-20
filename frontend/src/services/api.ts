@@ -51,19 +51,10 @@ function authBaseFromApiBase(apiBase: string): string {
 
 function resolveAuthBase(): string {
     const runtime = getRuntimeConfig();
-    if (runtime?.authUrl) return stripTrailingSlash(runtime.authUrl);
+    const rawUrl = runtime?.authUrl || process.env.NEXT_PUBLIC_AUTH_URL || runtime?.apiUrl || process.env.NEXT_PUBLIC_API_URL;
 
-    const authFromEnv = process.env.NEXT_PUBLIC_AUTH_URL;
-    if (authFromEnv) return stripTrailingSlash(authFromEnv);
-
-    if (runtime?.apiUrl) {
-        const trimmed = stripTrailingSlash(runtime.apiUrl);
-        return authBaseFromApiBase(trimmed);
-    }
-
-    const apiFromEnv = process.env.NEXT_PUBLIC_API_URL;
-    if (apiFromEnv) {
-        const trimmed = stripTrailingSlash(apiFromEnv);
+    if (rawUrl && rawUrl.startsWith("http")) {
+        const trimmed = stripTrailingSlash(rawUrl);
         return authBaseFromApiBase(trimmed);
     }
 
@@ -76,11 +67,13 @@ function resolveAuthBase(): string {
 
 function resolveApiBase(authBase: string): string {
     const runtime = getRuntimeConfig();
-    if (runtime?.apiUrl) return stripTrailingSlash(runtime.apiUrl);
+    // If the runtime or env explicitly has a URL ending in /api or /api/v1, use it.
+    const rawApiUrl = runtime?.apiUrl || process.env.NEXT_PUBLIC_API_URL;
+    if (rawApiUrl && rawApiUrl.startsWith("http") && /\/api(?:\/v1)?$/.test(rawApiUrl)) {
+        return stripTrailingSlash(rawApiUrl);
+    }
 
-    const apiFromEnv = process.env.NEXT_PUBLIC_API_URL;
-    if (apiFromEnv) return stripTrailingSlash(apiFromEnv);
-
+    // Otherwise, build it from the resolved auth base (the root).
     if (authBase) {
         return `${stripTrailingSlash(authBase)}/api/v1`;
     }

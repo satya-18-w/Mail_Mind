@@ -406,14 +406,14 @@ async def stream_latest_pipeline_run(
             payload = PipelineRunOut.model_validate(run).model_dump(mode="json")
             payload_str = json.dumps(payload)
             if payload_str != last_payload:
-                yield f"event: pipeline\\ndata: {payload_str}\\n\\n"
+                yield f"event: pipeline\ndata: {payload_str}\n\n"
                 last_payload = payload_str
 
             if payload["status"] in {"RUNNING", "QUEUED"}:
                 await asyncio.sleep(1)
             else:
                 # Keep connection alive while idle and wait for next run changes.
-                yield ": keep-alive\\n\\n"
+                yield ": keep-alive\n\n"
                 await asyncio.sleep(10)
 
     return StreamingResponse(
