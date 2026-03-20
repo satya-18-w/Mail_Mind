@@ -39,27 +39,6 @@ function sanitizeFetchLimit(value: number): number {
 export default function Dashboard() {
   const { user, logout, isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
-
-  // Auth guard: redirect unauthenticated users to /login
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.replace("/login");
-    }
-  }, [authLoading, isAuthenticated, router]);
-
-  // Show loading spinner while checking auth
-  if (authLoading) {
-    return (
-      <div className="flex h-dvh items-center justify-center bg-slate-50">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-indigo-500 border-t-transparent" />
-      </div>
-    );
-  }
-
-  // Don't render dashboard until authenticated (redirect is in progress)
-  if (!isAuthenticated) {
-    return null;
-  }
   const queryClient = useQueryClient();
   const [selectedView, setSelectedView] = useState("all");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -90,6 +69,13 @@ export default function Dashboard() {
   const searchMutation = useSearchEmails();
   const pipelineMutation = useTriggerPipeline();
   const { data: latestRun } = useLatestPipelineRun(!!user);
+
+  // Auth guard: redirect unauthenticated users to /login
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      router.replace("/login");
+    }
+  }, [authLoading, isAuthenticated, router]);
 
   const isPipelineActive =
     pipelineMutation.isPending ||
@@ -254,6 +240,19 @@ export default function Dashboard() {
     if (!selectedEmail) return;
     setSidebarOpen(false);
   }, [selectedEmail]);
+
+  // Auth guard: show spinner while loading, hide dashboard if not authenticated
+  if (authLoading) {
+    return (
+      <div className="flex h-dvh items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-indigo-500 border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="flex h-dvh bg-slate-50 overflow-hidden">
